@@ -14,13 +14,12 @@ jobs:
         with:
           python-version: '3.10'
       - name: Install dependencies
-         run: |
-         ls -la
-         pwd
-         pip install -r requirements.txt
-      
-         
-         
-
+        run: |
+          echo "📁 Dossier actuel :"
+          pwd
+          echo "📋 Fichiers présents :"
+          ls -la
+          echo "📦 Installation des dépendances..."
+          pip install -r requirements.txt
       - name: Run Auto Factory
         run: python content_factory/auto_content_engine.py

@@ -1,7 +1,7 @@
 import os
 from moviepy.editor import ImageClip, AudioFileClip, CompositeVideoClip
 from PIL import Image
-from content_factory.image_manager import ImageManager
+from image_manager import ImageManager
 from content_factory.audio_generator import AudioGenerator
 
 class VideoCreator:

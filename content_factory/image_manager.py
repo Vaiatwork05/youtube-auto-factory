@@ -1,109 +1,92 @@
 import os
-import requests
 import re
 from collections import Counter
-from PIL import Image
-import urllib.request
-import time
+from PIL import Image, ImageDraw, ImageFont
 import random
+import time
 
 class ImageManager:
     def __init__(self, download_folder="downloaded_images"):
         self.download_folder = download_folder
         self.setup_directories()
-        
+    
     def setup_directories(self):
-        """Crée le dossier de téléchargement s'il n'existe pas"""
-        if not os.path.exists(self.download_folder):
-            os.makedirs(self.download_folder)
+        """Crée le dossier de téléchargement"""
+        os.makedirs(self.download_folder, exist_ok=True)
     
     def extract_keywords(self, text, max_keywords=5):
-        """
-        Extrait les mots-clés les plus importants d'un texte
-        """
-        # Nettoyer le texte et trouver les mots
+        """Extrait les mots-clés importants"""
         words = re.findall(r'\b[a-zA-Z]{4,}\b', text.lower())
         
-        # Liste des mots à exclure (stop words)
         stop_words = {
             'this', 'that', 'with', 'from', 'have', 'were', 'their', 
-            'what', 'when', 'which', 'they', 'will', 'would', 'could',
-            'about', 'into', 'through', 'during', 'before', 'after',
-            'above', 'below', 'between', 'under', 'while', 'since',
-            'until', 'upon', 'toward', 'among', 'according', 'because'
+            'what', 'when', 'which', 'they', 'will', 'would', 'could'
         }
         
-        # Filtrer les mots significatifs
         meaningful_words = [word for word in words if word not in stop_words]
         
         if not meaningful_words:
-            # Fallback: prendre les mots les plus longs
             meaningful_words = sorted(words, key=len, reverse=True)[:max_keywords]
         
-        # Compter les fréquences et retourner les plus courants
         word_freq = Counter(meaningful_words)
         return [word for word, count in word_freq.most_common(max_keywords)]
     
-    def generate_search_queries(self, keywords, text_segment=""):
-        """
-        Génère des requêtes de recherche intelligentes basées sur les mots-clés
-        """
-        queries = []
-        
-        if not keywords:
-            # Fallback: extraire les noms propres du texte
-            proper_nouns = re.findall(r'\b[A-Z][a-z]+\b', text_segment)
-            if proper_nouns:
-                queries.extend(proper_nouns[:3])
-            return queries or ["abstract"]
-        
-        # Combinaisons de mots-clés
-        if len(keywords) >= 2:
-            queries.append(f"{keywords[0]} {keywords[1]}")
-            queries.append(f"{keywords[0]} concept")
-        
-        # Mots-clés individuels
-        queries.extend(keywords[:3])
-        
-        # Ajouter des termes contextuels
-        if "technology" in text_segment.lower():
-            queries.append("technology innovation")
-        if "science" in text_segment.lower():
-            queries.append("scientific discovery")
-        if "future" in text_segment.lower():
-            queries.append("futuristic technology")
-        if "history" in text_segment.lower():
-            queries.append("historical event")
-        
-        return list(set(queries))  # Supprimer les doublons
-    
-    def search_images(self, query, num_images=3):
-        """
-        Recherche des images basées sur une requête
-        Note: À adapter avec votre API d'images préférée
-        """
-        # Cette fonction simule la recherche d'images
-        # Remplacez par votre logique de recherche réelle (Unsplash, Pexels, etc.)
-        
-        print(f"🔍 Recherche d'images pour: '{query}'")
-        
-        # Simulation - en production, utilisez une vraie API
-        simulated_images = []
-        for i in range(num_images):
-            # Créer une image de placeholder avec le texte de la requête
-            img_path = self.create_placeholder_image(query, i)
-            simulated_images.append(img_path)
-        
-        return simulated_images
-    
     def create_placeholder_image(self, query, index):
-        """
-        Crée une image placeholder avec le texte de la requête
-        À remplacer par de vraies images d'API
-        """
-        # Créer un nom de fichier basé sur la requête
+        """Crée une image placeholder (à remplacer par vraies images)"""
         safe_query = "".join(c for c in query if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        filename = f"{safe_query}_{index}_{int(time.time())}.jpg"
+        filename = f"{safe_query}_{index}.jpg"
+        filepath = os.path.join(self.download_folder, filename)
+        
+        try:
+            img = Image.new('RGB', (800, 600), color=(random.randint(50, 200), 
+                                                     random.randint(50, 200), 
+                                                     random.randint(50, 200)))
+            draw = ImageDraw.Draw(img)
+            
+            # Essayer différentes polices
+            try:
+                font = ImageFont.truetype("arial.ttf", 30)
+            except:
+                try:
+                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 30)
+                except:
+                    font = ImageFont.load_default()
+            
+            text = f"Image: {query}"
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            x = (800 - text_width) // 2
+            y = 300
+            
+            draw.text((x, y), text, fill=(255, 255, 255), font=font)
+            img.save(filepath)
+            
+        except Exception as e:
+            print(f"❌ Erreur création image: {e}")
+            open(filepath, 'a').close()
+        
+        return filepath
+    
+    def search_images_by_keywords(self, keywords, text_segment="", num_images=3):
+        """Recherche des images basées sur les mots-clés"""
+        if not keywords:
+            keywords = self.extract_keywords(text_segment)
+        
+        print(f"🔍 Recherche images avec mots-clés: {keywords}")
+        
+        images = []
+        for i in range(num_images):
+            query = keywords[i % len(keywords)] if keywords else "science"
+            image_path = self.create_placeholder_image(query, i)
+            images.append(image_path)
+        
+        return images
+    
+    def get_images_for_content(self, content_data, num_images=5):
+        """Obtient des images pour le contenu"""
+        script = content_data.get('script', '')
+        keywords = self.extract_keywords(script)
+        return self.search_images_by_keywords(keywords, script, num_images)        filename = f"{safe_query}_{index}_{int(time.time())}.jpg"
         filepath = os.path.join(self.download_folder, filename)
         
         # Créer une image simple avec PIL (dans la vraie implémentation, téléchargez de vraies images)

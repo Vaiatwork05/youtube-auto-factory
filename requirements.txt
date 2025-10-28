@@ -14,3 +14,7 @@ decorator==4.4.2
 # REQUÊTES & UTILITAIRES
 requests==2.31.0
 packaging==23.2
+
+# 🎙️ TEXT-TO-SPEECH
+edge-tts==6.1.9
+gTTS==2.4.0

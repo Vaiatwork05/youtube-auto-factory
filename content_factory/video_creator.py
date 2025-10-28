@@ -413,7 +413,8 @@ if __name__ == "__main__":
     if result:
         print(f"🎉 Test réussi: {result}")
     else:
-        print("❌ Test échoué")            if not image_paths:
+    if not image_paths:
+        print("❌ Test échoué")
                 print("❌ Aucune image disponible, création d'images par défaut")
                 image_paths = [image_manager.create_placeholder_image("default", i) for i in range(8)]
             

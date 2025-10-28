@@ -1,4 +1,21 @@
-name: Daily Auto Content Factory
+# AJOUTEZ CECI AU DÉBUT DE auto_content_engine.py :
+import traceback
+import sys
+
+try:
+    print("🔧 ÉTAPE 1: Démarrage...")
+    # Votre code existant...
+    
+    print("🔧 ÉTAPE 2: Génération contenu...")
+    # ...
+    
+    print("🔧 ÉTAPE 3: Upload YouTube...")
+    # ...
+    
+except Exception as e:
+    print(f"🚨 ERREUR: {str(e)}")
+    print(f"📋 STACKTRACE: {traceback.format_exc()}")
+    sys.exit(1)name: Daily Auto Content Factory
 on:
   schedule:
     - cron: '0 8,12,16,20 * * *'

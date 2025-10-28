@@ -20,7 +20,7 @@ decorator==4.4.2
 # ======================
 requests==2.31.0
 python-dotenv==1.0.0
-pathlib2==2.3.8
+pathlib2==2.3.7.post1
 
 # ======================
 # TEXT-TO-SPEECH

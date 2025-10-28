@@ -42,7 +42,7 @@ jobs:
       # ⭐⭐ NOUVELLE ÉTAPE - ARTIFACT ⭐⭐
       - name: Upload video artifact
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: generated-video
           path: output/

@@ -1,543 +1,268 @@
-# content_factory/image_manager.py
+# content_factory/video_creator.py
 import os
-import requests
-import logging
-from PIL import Image, ImageDraw, ImageFont
-import random
+import sys
+from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
+from PIL import Image
 import time
-from pathlib import Path
-from utils import clean_filename, safe_path_join, ensure_directory
 
-class ImageManager:
-    def __init__(self, unsplash_access_key=None):
-        self.output_dir = "output/images"
-        self.unsplash_access_key = unsplash_access_key or os.getenv('UNSPLASH_ACCESS_KEY')
-        ensure_directory(self.output_dir)
-        
-        # Configuration des couleurs pour les placeholders
-        self.colors = [
-            (70, 130, 180),    # Bleu acier
-            (46, 139, 87),     # Vert mer
-            (178, 34, 34),     # Rouge brique
-            (148, 0, 211),     # Violet
-            (255, 140, 0),     # Orange foncé
-            (60, 179, 113),    # Vert medium
-            (123, 104, 238),   # Violet medium
-            (205, 92, 92)      # Rouge indien
-        ]
-        
-        logging.basicConfig(level=logging.INFO)
-        self.logger = logging.getLogger(__name__)
+class VideoCreator:
+    def __init__(self):
+        self.output_dir = "output/videos"
+        self._ensure_directory(self.output_dir)
     
-    def get_images_for_content(self, content_data, num_images=8):
-        """
-        Récupère les images pour le contenu
-        """
-        self.logger.info(f"🖼️  Récupération de {num_images} images pour le contenu")
-        
-        # Extraire les mots-clés
-        keywords = self._extract_keywords_from_content(content_data)
-        self.logger.info(f"🔑 Mots-clés extraits: {keywords}")
-        
-        # Récupérer les images avec fallback
-        images = self._get_images_with_fallback(keywords, num_images)
-        
-        self.logger.info(f"✅ {len(images)} images obtenues")
-        return images
+    def _ensure_directory(self, path):
+        """Crée le dossier s'il n'existe pas"""
+        os.makedirs(path, exist_ok=True)
     
-    def _get_images_with_fallback(self, keywords, num_images):
+    def create_video(self, content_data):
         """
-        Système de fallback pour la récupération d'images
+        Crée une vidéo simple et robuste
         """
-        images = []
-        
-        # 1. Essayer Unsplash d'abord
-        if self.unsplash_access_key:
-            self.logger.info("🌅 Tentative de récupération via Unsplash...")
-            unsplash_images = self._try_unsplash_search(keywords, num_images)
-            images.extend(unsplash_images)
-        
-        # 2. Compléter avec des placeholders si nécessaire
-        if len(images) < num_images:
-            missing_count = num_images - len(images)
-            self.logger.info(f"🔄 Création de {missing_count} placeholders...")
-            placeholders = self._create_placeholder_images(keywords, missing_count)
-            images.extend(placeholders)
-        
-        return images[:num_images]
-    
-    def _extract_keywords_from_content(self, content_data):
-        """
-        Extrait les mots-clés du contenu
-        """
-        keywords = []
-        
-        # Priorité 1: Mots-clés explicites
-        if content_data.get('keywords'):
-            keywords.extend(content_data['keywords'])
-        
-        # Priorité 2: Titre
-        if content_data.get('title'):
-            title_keywords = self._extract_keywords_from_text(content_data['title'])
-            keywords.extend(title_keywords)
-        
-        # Priorité 3: Description/script
-        if content_data.get('description'):
-            desc_keywords = self._extract_keywords_from_text(content_data['description'])
-            keywords.extend(desc_keywords)
-        
-        # Éliminer les doublons et vides
-        keywords = [k for k in keywords if k and len(k) > 2]
-        keywords = list(dict.fromkeys(keywords))  # Garder l'ordre
-        
-        # Limiter à 5 mots-clés maximum
-        return keywords[:5]
-    
-    def _extract_keywords_from_text(self, text):
-        """
-        Extrait les mots-clés d'un texte
-        """
-        # Mots à exclure
-        stop_words = {'le', 'la', 'les', 'de', 'des', 'du', 'et', 'ou', 'dans', 'pour', 'avec', 'sur', 'par'}
-        
-        # Nettoyer et séparer les mots
-        words = text.lower().split()
-        keywords = []
-        
-        for word in words:
-            # Nettoyer le mot
-            clean_word = ''.join(c for c in word if c.isalnum() or c in ('-', '_'))
-            if (clean_word and len(clean_word) > 2 and 
-                clean_word not in stop_words and
-                not clean_word.isnumeric()):
-                keywords.append(clean_word)
-        
-        return keywords
-    
-    def _try_unsplash_search(self, keywords, num_images):
-        """
-        Tente une recherche Unsplash avec gestion d'erreurs
-        """
-        images = []
-        
-        for keyword in keywords[:3]:  # Maximum 3 mots-clés pour Unsplash
-            if len(images) >= num_images:
-                break
+        try:
+            print("🎬 Début création vidéo...")
+            
+            # Extraire les données
+            title = content_data.get('title', 'Ma Vidéo')
+            script = content_data.get('script', 'Contenu vidéo généré automatiquement.')
+            
+            # Nettoyer le titre pour le fichier
+            clean_title = self._clean_filename(title)
+            video_path = os.path.join(self.output_dir, f"video_{clean_title}.mp4")
+            
+            print(f"📝 Titre: {title}")
+            print(f"💾 Fichier: {video_path}")
+            
+            # Générer l'audio
+            print("🔊 Génération audio...")
+            audio_path = self._generate_audio(script, title)
+            
+            # Obtenir les images
+            print("🖼️ Récupération images...")
+            image_paths = self._get_images(content_data, num_images=6)
+            
+            # Vérifier si on a des images
+            if not image_paths:
+                print("❌ Aucune image disponible, création d'images de secours...")
+                image_paths = self._create_fallback_images(6)
+            
+            # Créer la vidéo
+            print("🎥 Assemblage vidéo...")
+            result_path = self._create_video_from_assets(image_paths, audio_path, video_path)
+            
+            if result_path and os.path.exists(result_path):
+                file_size = os.path.getsize(result_path)
+                print(f"✅ Vidéo créée avec succès: {result_path} ({file_size} octets)")
+                return result_path
+            else:
+                print("❌ Échec création vidéo")
+                return None
                 
+        except Exception as e:
+            print(f"❌ Erreur création vidéo: {e}")
+            return self._create_fallback_video(content_data)
+    
+    def _generate_audio(self, text, title):
+        """Génère un fichier audio simple"""
+        try:
+            from content_factory.audio_generator import AudioGenerator
+            generator = AudioGenerator()
+            return generator.generate_audio(text, title)
+        except Exception as e:
+            print(f"⚠️ Erreur génération audio: {e}")
+            # Fallback: créer un fichier audio minimal
+            audio_dir = "output/audio"
+            self._ensure_directory(audio_dir)
+            audio_path = os.path.join(audio_dir, f"audio_{self._clean_filename(title)}.mp3")
+            
+            # Créer un fichier audio silencieux avec ffmpeg
             try:
-                self.logger.info(f"🔍 Recherche Unsplash: '{keyword}'")
-                unsplash_images = self._unsplash_search(keyword, num_images - len(images))
-                images.extend(unsplash_images)
-                time.sleep(0.5)  # Respect rate limit
-                
+                import subprocess
+                subprocess.run([
+                    'ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+                    '-t', '30', '-y', audio_path
+                ], capture_output=True, timeout=30)
             except Exception as e:
-                self.logger.error(f"❌ Erreur Unsplash pour '{keyword}': {e}")
-                continue
+                print(f"⚠️ Erreur ffmpeg: {e}")
+                # Dernier recours: fichier vide
+                open(audio_path, 'wb').close()
+            
+            return audio_path
+    
+    def _get_images(self, content_data, num_images=6):
+        """Récupère des images"""
+        try:
+            from content_factory.image_manager import ImageManager
+            manager = ImageManager()
+            return manager.get_images_for_content(content_data, num_images)
+        except Exception as e:
+            print(f"⚠️ Erreur récupération images: {e}")
+            # Fallback: créer des placeholders
+            return self._create_fallback_images(num_images)
+    
+    def _create_fallback_images(self, num_images):
+        """Crée des images de secours"""
+        images = []
+        image_dir = "output/images"
+        self._ensure_directory(image_dir)
+        
+        # CORRECTION : Séparer le for et le print
+        for i in range(num_images):
+            img_path = os.path.join(image_dir, f"placeholder_{i}.jpg")
+            self._create_simple_image(img_path, f"Image {i+1}")
+            images.append(img_path)
+            print(f"🖼️ Image de secours créée: {img_path}")  # Déplacé ici
         
         return images
     
-    def _unsplash_search(self, query, count=5):
-        """
-        Recherche d'images sur Unsplash
-        """
+    def _create_simple_image(self, path, text):
+        """Crée une image simple avec texte"""
         try:
-            if not self.unsplash_access_key:
-                raise ValueError("Clé API Unsplash non configurée")
+            from PIL import Image, ImageDraw, ImageFont
             
-            headers = {
-                'Authorization': f'Client-ID {self.unsplash_access_key}'
-            }
-            
-            params = {
-                'query': query,
-                'per_page': count,
-                'orientation': 'landscape'
-            }
-            
-            response = requests.get(
-                'https://api.unsplash.com/search/photos',
-                headers=headers,
-                params=params,
-                timeout=10
-            )
-            
-            if response.status_code == 401:
-                self.logger.error("❌ Erreur 401 Unsplash: Clé API invalide")
-                return []
-            elif response.status_code != 200:
-                self.logger.error(f"❌ Erreur Unsplash {response.status_code}: {response.text}")
-                return []
-            
-            data = response.json()
-            images = []
-            
-            for photo in data.get('results', [])[:count]:
-                image_url = photo['urls']['regular']
-                image_filename = f"unsplash_{query}_{photo['id']}.jpg"
-                image_path = safe_path_join(self.output_dir, image_filename)
-                
-                # Télécharger l'image
-                if self._download_image(image_url, image_path):
-                    images.append(image_path)
-            
-            self.logger.info(f"✅ {len(images)} images Unsplash téléchargées pour '{query}'")
-            return images
-            
-        except requests.exceptions.Timeout:
-            self.logger.error(f"❌ Timeout Unsplash pour '{query}'")
-            return []
-        except Exception as e:
-            self.logger.error(f"❌ Erreur recherche Unsplash: {e}")
-            return []
-    
-    def _download_image(self, url, save_path):
-        """
-        Télécharge une image depuis une URL
-        """
-        try:
-            response = requests.get(url, timeout=10, stream=True)
-            response.raise_for_status()
-            
-            with open(save_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"❌ Erreur téléchargement image: {e}")
-            return False
-    
-    def _create_placeholder_images(self, keywords, count):
-        """
-        Crée des images placeholder de haute qualité
-        """
-        placeholders = []
-        
-        for i in range(count):
-            keyword = keywords[i % len(keywords)] if keywords else "image"
-            placeholder_path = self.create_placeholder_image(keyword, i)
-            placeholders.append(placeholder_path)
-        
-        return placeholders
-    
-    def create_placeholder_image(self, keyword, index):
-        """
-        Crée une image placeholder attrayante
-        """
-        try:
-            # Dimensions HD
-            width, height = 1280, 720
-            
-            # Créer l'image avec fond coloré
-            color = random.choice(self.colors)
-            img = Image.new('RGB', (width, height), color=color)
+            # Créer image 1280x720
+            img = Image.new('RGB', (1280, 720), color=(53, 94, 159))
             draw = ImageDraw.Draw(img)
             
-            # Essayer de charger une police, sinon utiliser la police par défaut
+            # Essayer différentes polices
             try:
-                font_size = 60
-                font = ImageFont.truetype("arial.ttf", font_size)
+                font = ImageFont.truetype("arial.ttf", 60)
             except:
                 try:
-                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
                 except:
                     font = ImageFont.load_default()
             
-            # Calculer la position du texte
-            text = keyword.upper()
+            # Centrer le texte
             bbox = draw.textbbox((0, 0), text, font=font)
             text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
+            x = (1280 - text_width) // 2
+            y = (720 - 60) // 2
             
-            x = (width - text_width) // 2
-            y = (height - text_height) // 2
-            
-            # Ajouter le texte avec ombre
-            shadow_color = (0, 0, 0, 128)
-            text_color = (255, 255, 255)
-            
-            # Ombre
-            draw.text((x+2, y+2), text, font=font, fill=shadow_color)
-            # Texte principal
-            draw.text((x, y), text, font=font, fill=text_color)
-            
-            # Sauvegarder l'image
-            filename = f"placeholder_{clean_filename(keyword)}_{index}.jpg"
-            filepath = safe_path_join(self.output_dir, filename)
-            img.save(filepath, quality=85)
-            
-            self.logger.info(f"🖼️  Placeholder créé: {filename}")
-            return filepath
+            draw.text((x, y), text, fill=(255, 255, 255), font=font)
+            img.save(path, quality=85)
             
         except Exception as e:
-            self.logger.error(f"❌ Erreur création placeholder: {e}")
-            # Fallback ultra simple
-            filename = f"placeholder_{keyword}_{index}.jpg"
-            filepath = safe_path_join(self.output_dir, filename)
-            Image.new('RGB', (1280, 720), color=(100, 100, 100)).save(filepath)
-            return filepath
-
-# Fonction utilitaire pour usage direct
-def get_images_for_content(content_data, num_images=8):
-    """
-    Fonction helper pour récupérer des images
-    """
-    manager = ImageManager()
-    return manager.get_images_for_content(content_data, num_images)
-
-# Test du module
-if __name__ == "__main__":
-    def test_image_manager():
-        """Test du ImageManager"""
-        print("🧪 Test du ImageManager...")
-        
-        manager = ImageManager()
-        
-        # Données de test
-        test_content = {
-            'title': 'La beauté de la nature et des paysages',
-            'description': 'Découvrez les plus beaux paysages naturels du monde',
-            'keywords': ['nature', 'paysage', 'montagne', 'forêt']
-        }
-        
-        # Test de la méthode
-        images = manager.get_images_for_content(test_content, num_images=4)
-        
-        print(f"✅ {len(images)} images obtenues:")
-        for img in images:
-            print(f"   - {img}")
-        
-        return len(images) > 0
+            print(f"⚠️ Erreur création image: {e}")
+            # Créer une image vide
+            Image.new('RGB', (1280, 720), color=(100, 100, 100)).save(path)
     
-    # Exécuter le test
-    test_image_manager()        
-        for word in words:
-            # Nettoyer le mot
-            clean_word = ''.join(c for c in word if c.isalnum() or c in ('-', '_'))
-            if (clean_word and len(clean_word) > 2 and 
-                clean_word not in stop_words and
-                not clean_word.isnumeric()):
-                keywords.append(clean_word)
-        
-        return keywords
-    
-    def _try_unsplash_search(self, keywords, num_images):
-        """
-        Tente une recherche Unsplash avec gestion d'erreurs
-        """
-        images = []
-        
-        for keyword in keywords[:3]:  # Maximum 3 mots-clés pour Unsplash
-            if len(images) >= num_images:
-                break
-                
-            try:
-                self.logger.info(f"🔍 Recherche Unsplash: '{keyword}'")
-                unsplash_images = self.unsplash_search(keyword, num_images - len(images))
-                images.extend(unsplash_images)
-                time.sleep(0.5)  # Respect rate limit
-                
-            except Exception as e:
-                self.logger.error(f"❌ Erreur Unsplash pour '{keyword}': {e}")
-                continue
-        
-        return images
-    
-    def unsplash_search(self, query, count=5):
-        """
-        Recherche d'images sur Unsplash
-        """
+    def _create_video_from_assets(self, image_paths, audio_path, output_path):
+        """Crée la vidéo finale"""
         try:
-            if not self.unsplash_access_key:
-                raise ValueError("Clé API Unsplash non configurée")
+            # Vérifier les fichiers
+            if not os.path.exists(audio_path):
+                raise Exception("Fichier audio manquant")
             
-            headers = {
-                'Authorization': f'Client-ID {self.unsplash_access_key}'
-            }
+            if not image_paths:
+                raise Exception("Aucune image disponible")
             
-            params = {
-                'query': query,
-                'per_page': count,
-                'orientation': 'landscape'
-            }
+            # Durée de l'audio
+            audio_clip = AudioFileClip(audio_path)
+            audio_duration = audio_clip.duration
+            if audio_duration <= 0:
+                audio_duration = 30
             
-            response = requests.get(
-                'https://api.unsplash.com/search/photos',
-                headers=headers,
-                params=params,
-                timeout=10
+            # Calculer durée par image
+            duration_per_image = audio_duration / len(image_paths)
+            
+            print(f"⏱️ Durée audio: {audio_duration:.1f}s")
+            print(f"🖼️ Images: {len(image_paths)}")
+            print(f"⏰ Durée/image: {duration_per_image:.1f}s")
+            
+            # Créer les clips images
+            video_clips = []
+            for i, img_path in enumerate(image_paths):
+                if os.path.exists(img_path):
+                    clip = ImageClip(img_path, duration=duration_per_image)
+                    clip = clip.resize(height=720)  # Format 16:9
+                    video_clips.append(clip)
+                    print(f"📹 Clip {i+1}/{len(image_paths)} créé")
+            
+            if not video_clips:
+                raise Exception("Aucun clip valide créé")
+            
+            # Concaténer et ajouter l'audio
+            final_video = concatenate_videoclips(video_clips, method="compose")
+            final_video = final_video.set_audio(audio_clip)
+            final_video = final_video.set_duration(audio_duration)
+            
+            # Exporter
+            final_video.write_videofile(
+                output_path,
+                fps=24,
+                codec='libx264',
+                audio_codec='aac',
+                verbose=False,
+                logger=None,
+                threads=4
             )
             
-            if response.status_code == 401:
-                self.logger.error("❌ Erreur 401 Unsplash: Clé API invalide")
-                return []
-            elif response.status_code != 200:
-                self.logger.error(f"❌ Erreur Unsplash {response.status_code}: {response.text}")
-                return []
+            # Nettoyer la mémoire
+            for clip in video_clips:
+                clip.close()
+            audio_clip.close()
+            final_video.close()
             
-            data = response.json()
-            images = []
+            return output_path
             
-            for photo in data.get('results', [])[:count]:
-                image_url = photo['urls']['regular']
-                image_filename = f"unsplash_{query}_{photo['id']}.jpg"
-                image_path = safe_path_join(self.output_dir, image_filename)
-                
-                # Télécharger l'image
-                if self._download_image(image_url, image_path):
-                    images.append(image_path)
-            
-            self.logger.info(f"✅ {len(images)} images Unsplash téléchargées pour '{query}'")
-            return images
-            
-        except requests.exceptions.Timeout:
-            self.logger.error(f"❌ Timeout Unsplash pour '{query}'")
-            return []
         except Exception as e:
-            self.logger.error(f"❌ Erreur recherche Unsplash: {e}")
-            return []
+            print(f"❌ Erreur création vidéo assets: {e}")
+            return None
     
-    def _download_image(self, url, save_path):
-        """
-        Télécharge une image depuis une URL
-        """
+    def _create_fallback_video(self, content_data):
+        """Crée une vidéo de secours ultra simple"""
         try:
-            response = requests.get(url, timeout=10, stream=True)
-            response.raise_for_status()
+            title = content_data.get('title', 'Vidéo Secours')
+            video_path = os.path.join(self.output_dir, f"fallback_{self._clean_filename(title)}.mp4")
             
-            with open(save_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
+            # Créer une image simple
+            img_path = os.path.join("output/images", "fallback.jpg")
+            self._create_simple_image(img_path, title)
             
-            return True
+            # Créer une vidéo de 10 secondes
+            clip = ImageClip(img_path, duration=10)
+            clip = clip.resize(height=720)
+            clip.write_videofile(
+                video_path,
+                fps=24,
+                verbose=False,
+                logger=None
+            )
+            clip.close()
             
-        except Exception as e:
-            self.logger.error(f"❌ Erreur téléchargement image: {e}")
-            return False
-    
-    def _create_placeholder_images(self, keywords, count):
-        """
-        Crée des images placeholder de haute qualité
-        """
-        placeholders = []
-        
-        for i in range(count):
-            keyword = keywords[i % len(keywords)] if keywords else "image"
-            placeholder_path = self.create_placeholder_image(keyword, i)
-            placeholders.append(placeholder_path)
-        
-        return placeholders
-    
-    def create_placeholder_image(self, keyword, index):
-        """
-        Crée une image placeholder attrayante
-        """
-        try:
-            # Dimensions HD
-            width, height = 1280, 720
-            
-            # Créer l'image avec fond coloré
-            color = random.choice(self.colors)
-            img = Image.new('RGB', (width, height), color=color)
-            draw = ImageDraw.Draw(img)
-            
-            # Essayer de charger une police, sinon utiliser la police par défaut
-            try:
-                font_size = 60
-                font = ImageFont.truetype("arial.ttf", font_size)
-            except:
-                try:
-                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-                except:
-                    font = ImageFont.load_default()
-            
-            # Calculer la position du texte
-            text = keyword.upper()
-            bbox = draw.textbbox((0, 0), text, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-            
-            x = (width - text_width) // 2
-            y = (height - text_height) // 2
-            
-            # Ajouter le texte avec ombre
-            shadow_color = (0, 0, 0, 128)
-            text_color = (255, 255, 255)
-            
-            # Ombre
-            draw.text((x+2, y+2), text, font=font, fill=shadow_color)
-            # Texte principal
-            draw.text((x, y), text, font=font, fill=text_color)
-            
-            # Sauvegarder l'image
-            filename = f"placeholder_{clean_filename(keyword)}_{index}.jpg"
-            filepath = safe_path_join(self.output_dir, filename)
-            img.save(filepath, quality=85)
-            
-            self.logger.info(f"🖼️  Placeholder créé: {filename}")
-            return filepath
+            print(f"✅ Vidéo de secours créée: {video_path}")
+            return video_path
             
         except Exception as e:
-            self.logger.error(f"❌ Erreur création placeholder: {e}")
-            # Fallback ultra simple
-            filename = f"placeholder_{keyword}_{index}.jpg"
-            filepath = safe_path_join(self.output_dir, filename)
-            Image.new('RGB', (1280, 720), color=(100, 100, 100)).save(filepath)
-            return filepath
+            print(f"❌ Échec vidéo secours: {e}")
+            return None
     
-    def cleanup_old_images(self, keep_count=20):
-        """
-        Nettoie les anciennes images
-        """
-        try:
-            image_files = list(Path(self.output_dir).glob("*.jpg"))
-            
-            if len(image_files) > keep_count:
-                # Trier par date de modification
-                image_files.sort(key=lambda x: x.stat().st_mtime)
-                
-                # Supprimer les plus anciens
-                for old_file in image_files[:-keep_count]:
-                    old_file.unlink()
-                    self.logger.info(f"🗑️  Image supprimée: {old_file}")
-                    
-        except Exception as e:
-            self.logger.error(f"❌ Erreur nettoyage images: {e}")
+    def _clean_filename(self, text):
+        """Nettoie le texte pour un nom de fichier valide"""
+        import re
+        clean = re.sub(r'[^\w\s-]', '', text)
+        clean = re.sub(r'[-\s]+', '_', clean)
+        return clean[:50]
 
+# Fonction principale d'export
+def create_video(content_data):
+    """Fonction principale pour créer une vidéo"""
+    creator = VideoCreator()
+    return creator.create_video(content_data)
 
-# Fonction utilitaire pour usage direct
-def get_images_for_content(content_data, num_images=8):
-    """
-    Fonction helper pour récupérer des images
-    """
-    manager = ImageManager()
-    return manager.get_images_for_content(content_data, num_images)
-
-
-# Test du module
+# Test
 if __name__ == "__main__":
-    def test_image_manager():
-        """Test du ImageManager"""
-        print("🧪 Test du ImageManager...")
-        
-        manager = ImageManager()
-        
-        # Données de test
-        test_content = {
-            'title': 'La beauté de la nature et des paysages',
-            'description': 'Découvrez les plus beaux paysages naturels du monde',
-            'keywords': ['nature', 'paysage', 'montagne', 'forêt']
-        }
-        
-        # Test de la méthode
-        images = manager.get_images_for_content(test_content, num_images=4)
-        
-        print(f"✅ {len(images)} images obtenues:")
-        for img in images:
-            print(f"   - {img}")
-        
-        return len(images) > 0
+    print("🧪 Test VideoCreator...")
     
-    # Exécuter le test
-    test_image_manager()
+    test_data = {
+        'title': 'Test Vidéo Opérationnelle',
+        'script': 'Ceci est un test du système de création vidéo complètement opérationnel.',
+        'keywords': ['test', 'video', 'systeme']
+    }
+    
+    result = create_video(test_data)
+    
+    if result:
+        print("✅ Test réussi")
+    else:
+        print("❌ Test échoué")

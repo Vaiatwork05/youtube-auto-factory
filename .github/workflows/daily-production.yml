@@ -20,6 +20,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg python3-pip
           
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+            
       - name: Install Python dependencies
         run: |
           pip install -r requirements.txt

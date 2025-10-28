@@ -1,40 +1,33 @@
 import os
-import tempfile
-from moviepy.editor import ColorClip, CompositeVideoClip, ImageClip
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from moviepy.editor import ImageClip, AudioFileClip, CompositeVideoClip
+from PIL import Image
+from content_factory.image_manager import ImageManager
+from content_factory.audio_generator import AudioGenerator
 
 class VideoCreator:
     def __init__(self):
-        self.video_duration = 10  # 10 secondes pour tester
-        self.resolution = (1280, 720)  # HD
+        self.video_duration = 30  # 30 secondes maintenant
+        self.resolution = (1280, 720)
+        self.image_manager = ImageManager()
+        self.audio_generator = AudioGenerator()
     
-    def create_simple_video(self, script_data, output_dir="output"):
-        """Crée une vidéo simple sans ImageMagick"""
+    def create_professional_video(self, script_data, output_dir="output"):
+        """Crée une vidéo professionnelle avec voix off et images"""
         
-        # Créer le dossier de sortie
         os.makedirs(output_dir, exist_ok=True)
+        print("🎬 Création vidéo professionnelle...")
         
-        print("🎥 Création vidéo avec méthode simple...")
+        # 1. Générer l'audio
+        print("🎙️ Génération de la voix off...")
+        audio_path = self.audio_generator.generate_audio(script_data, script_data["title"])
         
-        # Créer une image avec du texte
-        img = Image.new('RGB', self.resolution, color=(30, 30, 60))
-        draw = ImageDraw.Draw(img)
+        # 2. Préparer l'image de fond avec texte
+        print("🖼️ Préparation des visuels...")
+        image_path = self.image_manager.get_random_science_image()
         
-        # Utiliser une police basique
-        try:
-            font = ImageFont.load_default()
-            title_font = ImageFont.load_default()
-        except:
-            font = None
-            title_font = None
-        
-        # Nettoyer le texte
-        clean_title = script_data["title"].replace('·', '-').replace('•', '-').replace('→', '->')
-        clean_script = script_data["script"].replace('·', '-').replace('•', '-').replace('→', '->')
-        
-        # Diviser le texte en lignes
-        words = clean_script.split()
+        # Nettoyer le texte pour l'overlay
+        clean_title = script_data["title"].replace('?', '').replace('!', '').replace(':', '')
+        words = script_data["script"].split()
         lines = []
         current_line = ""
         
@@ -48,70 +41,48 @@ class VideoCreator:
         if current_line:
             lines.append(current_line)
         
-        # Dessiner le titre
-        try:
-            draw.text((100, 100), clean_title, fill=(255, 255, 0), font=title_font)
-        except:
-            draw.text((100, 100), "Science Discovery", fill=(255, 255, 0), font=title_font)
+        # Créer l'image avec overlay
+        if image_path:
+            final_image = self.image_manager.create_text_overlay(image_path, clean_title, lines)
+            if final_image:
+                image_path = os.path.join(output_dir, "final_frame.jpg")
+                final_image.save(image_path)
         
-        # Dessiner le texte
-        y_position = 200
-        for line in lines[:6]:
-            if y_position < 600:
-                try:
-                    draw.text((100, y_position), line, fill=(255, 255, 255), font=font)
-                    y_position += 40
-                except:
-                    continue
+        # 3. Créer la vidéo
+        print("🎥 Assemblage vidéo...")
         
-        # Footer
-        try:
-            draw.text((100, 650), "Science Auto Daily - Abonnez-vous !", fill=(200, 200, 200), font=font)
-        except:
-            draw.text((100, 650), "Science Auto Daily", fill=(200, 200, 200), font=font)
+        # Clip image
+        image_clip = ImageClip(image_path, duration=self.video_duration)
         
-        # Sauvegarder l'image temporaire
-        temp_image_path = os.path.join(output_dir, "temp_frame.png")
-        img.save(temp_image_path)
+        # Clip audio si généré
+        if audio_path and os.path.exists(audio_path):
+            audio_clip = AudioFileClip(audio_path)
+            # Ajuster la durée de la vidéo à celle de l'audio
+            actual_duration = audio_clip.duration
+            image_clip = image_clip.set_duration(actual_duration)
+            image_clip = image_clip.set_audio(audio_clip)
         
-        # Créer une vidéo à partir de l'image
-        image_clip = ImageClip(temp_image_path, duration=self.video_duration)
-        
-        # Nettoyer le nom de fichier
-        clean_filename = clean_title.replace(' ', '_').replace('/', '_').replace('?', '').replace('!', '').replace(':', '')
+        # Exporter
+        clean_filename = clean_title.replace(' ', '_').replace('/', '_')
         output_path = os.path.join(output_dir, f"video_{clean_filename}.mp4")
         
-        try:
-            image_clip.write_videofile(
-                output_path,
-                fps=24,
-                codec='libx264',
-                audio_codec='aac',
-                verbose=False,
-                logger=None
-            )
-        except Exception as e:
-            print(f"⚠️  Erreur lors de l'export vidéo: {e}")
-            from moviepy.editor import ColorClip
-            color_clip = ColorClip(size=(1280, 720), color=(30, 30, 60), duration=10)
-            color_clip.write_videofile(output_path, fps=24, verbose=False, logger=None)
+        image_clip.write_videofile(
+            output_path,
+            fps=24,
+            codec='libx264',
+            audio_codec='aac',
+            verbose=False,
+            logger=None
+        )
         
-        # Nettoyer
-        if os.path.exists(temp_image_path):
-            os.remove(temp_image_path)
+        # Nettoyage
+        for temp_file in [image_path, audio_path] if audio_path else [image_path]:
+            if temp_file and os.path.exists(temp_file) and "temp" in temp_file:
+                os.remove(temp_file)
         
-        print(f"✅ Vidéo créée: {output_path}")
+        print(f"✅ Vidéo professionnelle créée: {output_path}")
         return output_path
 
-    def create_video(self, script_data, output_dir="output"):
+    def create_simple_video(self, script_data, output_dir="output"):
         """Alias pour compatibilité"""
-        return self.create_simple_video(script_data, output_dir)
-
-# Test
-if __name__ == "__main__":
-    creator = VideoCreator()
-    test_script = {
-        "title": "Test Video",
-        "script": "Ceci est un test de création vidéo automatique!"
-    }
-    creator.create_simple_video(test_script)
+        return self.create_professional_video(script_data, output_dir)

@@ -1,18 +1,44 @@
-import requests
 import random
+import requests
 
-def generate_science_script():
-    """Génère un script scientifique simple"""
-    topics = [
-        "Pourquoi le ciel est bleu ? La lumière du soleil est dispersée par l'atmosphère...",
-        "Les trous noirs : des monstres cosmiques qui dévorent tout, même la lumière...",
-        "L'ADN : le code secret de la vie qui se trouve dans chaque cellule...",
-        "Les atomes : les briques fondamentales de tout ce qui existe dans l'univers..."
-    ]
+class ContentGenerator:
+    def __init__(self):
+        self.science_topics = [
+            {
+                "title": "Le Mystère des Trous Noirs",
+                "script": "Les trous noirs sont des régions de l'espace où la gravité est si intense que même la lumière ne peut s'en échapper. Ils se forment lorsque des étoiles massives s'effondrent sur elles-mêmes à la fin de leur vie.",
+                "tags": ["science", "espace", "astronomie", "trous noirs"]
+            },
+            {
+                "title": "L'ADN : Code de la Vie", 
+                "script": "L'ADN contient les instructions génétiques qui font de vous un être unique. Cette molécule en double hélice se trouve dans chaque cellule de votre corps et détermine tout, de votre couleur des yeux à votre prédisposition à certaines maladies.",
+                "tags": ["science", "adn", "génétique", "biologie"]
+            },
+            {
+                "title": "Pourquoi le Ciel est Bleu ?",
+                "script": "La lumière du soleil est blanche, mais en traversant l'atmosphère terrestre, elle entre en collision avec les molécules d'air. La lumière bleue, plus courte, est dispersée dans toutes les directions, donnant au ciel sa couleur caractéristique.",
+                "tags": ["science", "ciel", "lumière", "physique"]
+            },
+            {
+                "title": "Les Superpouvoirs des Abeilles",
+                "script": "Les abeilles peuvent reconnaître les visages humains, danser pour communiquer la localisation des fleurs, et leur système de navigation est si précis qu'elles retrouvent toujours leur ruche.",
+                "tags": ["science", "abeilles", "nature", "insectes"]
+            }
+        ]
     
-    title = f"Science Fact #{random.randint(1000, 9999)}"
-    script = random.choice(topics)
-    
-    return title, script
+    def generate_script(self):
+        """Génère un script scientifique aléatoire"""
+        topic = random.choice(self.science_topics)
+        
+        return {
+            "title": topic["title"],
+            "script": topic["script"],
+            "tags": topic["tags"],
+            "description": f"{topic['script'][:100]}... #science #éducation #facts"
+        }
 
-print("✅ Content Generator prêt !")
+# Test
+if __name__ == "__main__":
+    generator = ContentGenerator()
+    script = generator.generate_script()
+    print("📝 Script généré:", script)

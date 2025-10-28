@@ -39,24 +39,21 @@ librosa==0.10.1
 # IMAGES & MULTIMÉDIA
 # ======================
 opencv-python==4.8.1.78
-unsplash==0.1.2
+unsplashpy==1.0.0a2
 
 # ======================
 # ASYNCHRONE & FICHIERS
 # ======================
 aiofiles==23.2.1
-asyncio-throttle==1.0.2
 
 # ======================
 # SÉCURITÉ & RÉSEAU
 # ======================
 certifi==2023.11.17
 urllib3==2.1.0
-charset-normalizer==3.3.2
 
 # ======================
 # LOGGING & DÉVELOPPEMENT
 # ======================
 colorama==0.4.6
 tqdm==4.66.1
-python-dateutil==2.8.2

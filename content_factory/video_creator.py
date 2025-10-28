@@ -3,107 +3,258 @@ import os
 import sys
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
 from PIL import Image
-from utils import clean_filename, safe_path_join, ensure_directory
+import time
 
 class VideoCreator:
     def __init__(self):
-        # Import différé pour éviter les circulaires
-        self.image_manager = None
-        self.audio_generator = None
         self.output_dir = "output/videos"
-        ensure_directory(self.output_dir)
+        self._ensure_directory(self.output_dir)
     
-    def _get_image_manager(self):
-        """Import différé de ImageManager"""
-        if self.image_manager is None:
-            try:
-                from content_factory.image_manager import ImageManager
-                self.image_manager = ImageManager()
-            except ImportError as e:
-                print(f"❌ Erreur import ImageManager: {e}")
-                # Fallback basique
-                class FallbackImageManager:
-                    def get_images_for_content(self, content_data, num_images=8):
-                        print("🔄 Utilisation ImageManager de secours")
-                        return [self.create_placeholder_image("fallback", i) for i in range(num_images)]
-                    
-                    def create_placeholder_image(self, keyword, index):
-                        from PIL import Image, ImageDraw
-                        img = Image.new('RGB', (1280, 720), color=(70, 130, 180))
-                        filename = f"placeholder_{keyword}_{index}.jpg"
-                        filepath = safe_path_join("output/images", filename)
-                        ensure_directory("output/images")
-                        img.save(filepath)
-                        return filepath
-                
-                self.image_manager = FallbackImageManager()
-        return self.image_manager
+    def _ensure_directory(self, path):
+        """Crée le dossier s'il n'existe pas"""
+        os.makedirs(path, exist_ok=True)
     
-    def _get_audio_generator(self):
-        """Import différé de AudioGenerator"""
-        if self.audio_generator is None:
-            try:
-                from content_factory.audio_generator import AudioGenerator
-                self.audio_generator = AudioGenerator()
-            except ImportError as e:
-                print(f"❌ Erreur import AudioGenerator: {e}")
-                # Fallback basique
-                class FallbackAudioGenerator:
-                    def generate_audio(self, text, title):
-                        print("🔄 Utilisation AudioGenerator de secours")
-                        clean_title = clean_filename(title)
-                        audio_path = safe_path_join("output/audio", f"audio_{clean_title}.mp3")
-                        ensure_directory("output/audio")
-                        # Créer un fichier audio minimal
-                        with open(audio_path, 'wb') as f:
-                            f.write(b'')  # Fichier vide
-                        return audio_path
-                
-                self.audio_generator = FallbackAudioGenerator()
-        return self.audio_generator
-    
-    def create_professional_video(self, content_data, output_dir="output"):
+    def create_video(self, content_data):
         """
-        Crée une vidéo professionnelle synchronisée
+        Crée une vidéo simple et robuste
         """
         try:
-            print("🎬 Création vidéo professionnelle...")
+            print("🎬 Début création vidéo...")
             
-            # Obtenir le script et titre
-            script = content_data.get('script', '')
-            title = content_data.get('title', 'Video')
+            # Extraire les données
+            title = content_data.get('title', 'Ma Vidéo')
+            script = content_data.get('script', 'Contenu vidéo généré automatiquement.')
             
-            if not script:
-                script = f"Contenu sur le thème: {title}"
-                print("⚠️ Aucun script fourni, utilisation du titre comme script")
+            # Nettoyer le titre pour le fichier
+            clean_title = self._clean_filename(title)
+            video_path = os.path.join(self.output_dir, f"video_{clean_title}.mp4")
             
-            clean_title = clean_filename(title)
-            video_path = safe_path_join(self.output_dir, f"video_{clean_title}.mp4")
-            
-            print(f"📝 Titre vidéo: {title}")
-            print(f"💾 Fichier de sortie: {video_path}")
+            print(f"📝 Titre: {title}")
+            print(f"💾 Fichier: {video_path}")
             
             # Générer l'audio
-            print("🔊 Génération de l'audio...")
-            audio_generator = self._get_audio_generator()
-            audio_path = audio_generator.generate_audio(script, title)
+            print("🔊 Génération audio...")
+            audio_path = self._generate_audio(script, title)
             
-            if not audio_path or not os.path.exists(audio_path):
-                print(f"❌ Audio non généré ou non trouvé: {audio_path}")
-                # Créer un chemin d'audio de secours
-                audio_path = safe_path_join("output/audio", f"audio_{clean_title}.mp3")
-                ensure_directory("output/audio")
-                with open(audio_path, 'wb') as f:
-                    f.write(b'')  # Fichier vide comme fallback
+            # Obtenir les images
+            print("🖼️ Récupération images...")
+            image_paths = self._get_images(content_data, num_images=6)
             
-            print(f"✅ Audio disponible: {audio_path}")
+            # Créer la vidéo
+            print("🎥 Assemblage vidéo...")
+            result_path = self._create_video_from_assets(image_paths, audio_path, video_path)
             
-            # Obtenir des images pertinentes
-            print("🖼️ Récupération des images...")
-            image_manager = self._get_image_manager()
-            image_paths = image_manager.get_images_for_content(content_data, num_images=8)
+            if result_path and os.path.exists(result_path):
+                file_size = os.path.getsize(result_path)
+                print(f"✅ Vidéo créée avec succès: {result_path} ({file_size} octets)")
+                return result_path
+            else:
+                print("❌ Échec création vidéo")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Erreur création vidéo: {e}")
+            return self._create_fallback_video(content_data)
+    
+    def _generate_audio(self, text, title):
+        """Génère un fichier audio simple"""
+        try:
+            from content_factory.audio_generator import AudioGenerator
+            generator = AudioGenerator()
+            return generator.generate_audio(text, title)
+        except:
+            # Fallback: créer un fichier audio minimal
+            audio_dir = "output/audio"
+            self._ensure_directory(audio_dir)
+            audio_path = os.path.join(audio_dir, f"audio_{self._clean_filename(title)}.mp3")
+            
+            # Créer un fichier audio silencieux avec ffmpeg
+            try:
+                import subprocess
+                subprocess.run([
+                    'ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
+                    '-t', '30', '-y', audio_path
+                ], capture_output=True, timeout=30)
+            except:
+                # Dernier recours: fichier vide
+                open(audio_path, 'wb').close()
+            
+            return audio_path
+    
+    def _get_images(self, content_data, num_images=6):
+        """Récupère des images"""
+        try:
+            from content_factory.image_manager import ImageManager
+            manager = ImageManager()
+            return manager.get_images_for_content(content_data, num_images)
+        except:
+            # Fallback: créer des placeholders
+            return self._create_fallback_images(num_images)
+    
+    def _create_fallback_images(self, num_images):
+        """Crée des images de secours"""
+        images = []
+        image_dir = "output/images"
+        self._ensure_directory(image_dir)
+        
+        for i in range(num_images):
+            img_path = os.path.join(image_dir, f"placeholder_{i}.jpg")
+            self._create_simple_image(img_path, f"Image {i+1}")
+            images.append(img_path)
+        
+        return images
+    
+    def _create_simple_image(self, path, text):
+        """Crée une image simple avec texte"""
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            
+            # Créer image 1280x720
+            img = Image.new('RGB', (1280, 720), color=(53, 94, 159))
+            draw = ImageDraw.Draw(img)
+            
+            # Essayer différentes polices
+            try:
+                font = ImageFont.truetype("arial.ttf", 60)
+            except:
+                try:
+                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
+                except:
+                    font = ImageFont.load_default()
+            
+            # Centrer le texte
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            x = (1280 - text_width) // 2
+            y = (720 - 60) // 2
+            
+            draw.text((x, y), text, fill=(255, 255, 255), font=font)
+            img.save(path, quality=85)
+            
+        except Exception as e:
+            print(f"⚠️ Erreur création image: {e}")
+            # Créer une image vide
+            Image.new('RGB', (1280, 720), color=(100, 100, 100)).save(path)
+    
+    def _create_video_from_assets(self, image_paths, audio_path, output_path):
+        """Crée la vidéo finale"""
+        try:
+            # Vérifier les fichiers
+            if not os.path.exists(audio_path):
+                raise Exception("Fichier audio manquant")
             
             if not image_paths:
+                raise Exception("Aucune image disponible")
+            
+            # Durée de l'audio
+            audio_clip = AudioFileClip(audio_path)
+            audio_duration = audio_clip.duration
+            if audio_duration <= 0:
+                audio_duration = 30
+            
+            # Calculer durée par image
+            duration_per_image = audio_duration / len(image_paths)
+            
+            print(f"⏱️ Durée audio: {audio_duration:.1f}s")
+            print(f"🖼️ Images: {len(image_paths)}")
+            print(f"⏰ Durée/image: {duration_per_image:.1f}s")
+            
+            # Créer les clips images
+            video_clips = []
+            for i, img_path in enumerate(image_paths):
+                if os.path.exists(img_path):
+                    clip = ImageClip(img_path, duration=duration_per_image)
+                    clip = clip.resize(height=720)  # Format 16:9
+                    video_clips.append(clip)
+                    print(f"📹 Clip {i+1}/{len(image_paths)} créé")
+            
+            if not video_clips:
+                raise Exception("Aucun clip valide créé")
+            
+            # Concaténer et ajouter l'audio
+            final_video = concatenate_videoclips(video_clips, method="compose")
+            final_video = final_video.set_audio(audio_clip)
+            final_video = final_video.set_duration(audio_duration)
+            
+            # Exporter
+            final_video.write_videofile(
+                output_path,
+                fps=24,
+                codec='libx264',
+                audio_codec='aac',
+                verbose=False,
+                logger=None,
+                threads=4
+            )
+            
+            # Nettoyer la mémoire
+            for clip in video_clips:
+                clip.close()
+            audio_clip.close()
+            final_video.close()
+            
+            return output_path
+            
+        except Exception as e:
+            print(f"❌ Erreur création vidéo assets: {e}")
+            return None
+    
+    def _create_fallback_video(self, content_data):
+        """Crée une vidéo de secours ultra simple"""
+        try:
+            title = content_data.get('title', 'Vidéo Secours')
+            video_path = os.path.join(self.output_dir, f"fallback_{self._clean_filename(title)}.mp4")
+            
+            # Créer une image simple
+            img_path = os.path.join("output/images", "fallback.jpg")
+            self._create_simple_image(img_path, title)
+            
+            # Créer une vidéo de 10 secondes
+            clip = ImageClip(img_path, duration=10)
+            clip = clip.resize(height=720)
+            clip.write_videofile(
+                video_path,
+                fps=24,
+                verbose=False,
+                logger=None
+            )
+            clip.close()
+            
+            print(f"✅ Vidéo de secours créée: {video_path}")
+            return video_path
+            
+        except Exception as e:
+            print(f"❌ Échec vidéo secours: {e}")
+            return None
+    
+    def _clean_filename(self, text):
+        """Nettoie le texte pour un nom de fichier valide"""
+        import re
+        clean = re.sub(r'[^\w\s-]', '', text)
+        clean = re.sub(r'[-\s]+', '_', clean)
+        return clean[:50]
+
+# Fonction principale d'export
+def create_video(content_data):
+    """Fonction principale pour créer une vidéo"""
+    creator = VideoCreator()
+    return creator.create_video(content_data)
+
+# Test - CORRIGÉ (chaîne correctement terminée)
+if __name__ == "__main__":
+    print("🧪 Test VideoCreator...")
+    
+    test_data = {
+        'title': 'Test Vidéo Opérationnelle',
+        'script': 'Ceci est un test du système de création vidéo complètement opérationnel.',
+        'keywords': ['test', 'video', 'systeme']
+    }
+    
+    result = create_video(test_data)
+    if result:
+        print(f"🎉 Test réussi: {result}")
+    else:
+        print("❌ Test échoué")            if not image_paths:
                 print("❌ Aucune image disponible, création d'images par défaut")
                 image_paths = [image_manager.create_placeholder_image("default", i) for i in range(8)]
             

@@ -1,3 +1,4 @@
+# requirements.txt AVEC UNSPLASH CORRECT
 # ======================
 # API YouTube & Authentification
 # ======================
@@ -20,7 +21,6 @@ decorator==4.4.2
 # ======================
 requests==2.31.0
 python-dotenv==1.0.0
-pathlib2==2.3.7.post1
 
 # ======================
 # TEXT-TO-SPEECH
@@ -33,13 +33,12 @@ aiohttp==3.9.1
 # TRAITEMENT AUDIO AVANCÉ
 # ======================
 pydub==0.25.1
-librosa==0.10.1
 
 # ======================
 # IMAGES & MULTIMÉDIA
 # ======================
 opencv-python==4.8.1.78
-unsplashpy==1.0.0a2
+python-unsplash==1.1.0
 
 # ======================
 # ASYNCHRONE & FICHIERS

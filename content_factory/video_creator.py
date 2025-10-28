@@ -265,7 +265,9 @@ if __name__ == "__main__":
     if result:
         print("✅ Test réussi")
     else:
-        print("❌ Test échoué")        self._ensure_directory(image_dir)
+        print("❌ Test échoué")
+        
+        self._ensure_directory(image_dir)
         
         for i in range(num_images):
             img_path = os.path.join(image_dir, f"placeholder_{i}.jpg")

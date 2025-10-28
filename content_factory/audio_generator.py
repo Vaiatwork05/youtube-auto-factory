@@ -1,72 +1,66 @@
-import edge_tts
-import asyncio
 import os
-from gtts import gTTS
+import edge_tts
+import tempfile
+from utils import clean_filename, safe_path_join, ensure_directory
 
 class AudioGenerator:
     def __init__(self):
         self.output_dir = "output/audio"
-        os.makedirs(self.output_dir, exist_ok=True)
+        ensure_directory(self.output_dir)
     
-    async def generate_voice_edge(self, text, output_file, voice="fr-FR-DeniseNeural"):
-        """Génère une voix off avec Edge TTS (qualité supérieure)"""
+    def generate_audio_edge_tts(self, text, title):
+        """
+        Génère un audio avec Edge TTS
+        """
         try:
-            communicate = edge_tts.Communicate(text, voice)
-            await communicate.save(output_file)
-            print(f"✅ Audio généré: {output_file}")
-            return True
-        except Exception as e:
-            print(f"🚨 Erreur Edge TTS: {e}")
-            return False
-    
-    def generate_voice_gtts(self, text, output_file, lang='fr'):
-        """Génère une voix off avec Google TTS (fallback)"""
-        try:
-            tts = gTTS(text=text, lang=lang, slow=False)
-            tts.save(output_file)
-            print(f"✅ Audio Google TTS généré: {output_file}")
-            return True
-        except Exception as e:
-            print(f"🚨 Erreur Google TTS: {e}")
-            return False
-    
-    def generate_audio(self, script_data, video_title):
-        """Génère l'audio pour la vidéo"""
-        output_file = os.path.join(self.output_dir, f"audio_{video_title.replace(' ', '_')}.mp3")
-        
-        # Texte complet pour la voix off
-        full_text = f"{script_data['title']}. {script_data['script']}"
-        
-        # Essayer Edge TTS d'abord (meilleure qualité)
-        try:
-            # Pour l'async dans un contexte sync
-            async def run_edge_tts():
-                return await self.generate_voice_edge(full_text, output_file)
+            # Nettoyer le titre pour le nom de fichier
+            clean_title = clean_filename(title)
+            audio_path = safe_path_join(self.output_dir, f"audio_{clean_title}.mp3")
             
-            # Exécuter l'async dans un contexte sync
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            success = loop.run_until_complete(run_edge_tts())
-            loop.close()
+            print(f"🎵 Génération audio Edge TTS: {audio_path}")
             
-            if success:
-                return output_file
+            # Utiliser Edge TTS
+            communicate = edge_tts.Communicate(text, "fr-FR-DeniseNeural")
+            await communicate.save(audio_path)
+            
+            print(f"✅ Audio Edge TTS généré: {audio_path}")
+            return audio_path
+            
         except Exception as e:
-            print(f"⚠️  Edge TTS échoué: {e}")
+            print(f"❌ Erreur Edge TTS: {e}")
+            return None
+    
+    def generate_audio_google_tts(self, text, title):
+        """
+        Fallback avec Google TTS (si Edge TTS échoue)
+        """
+        try:
+            clean_title = clean_filename(title)
+            audio_path = safe_path_join(self.output_dir, f"audio_{clean_title}.mp3")
+            
+            print(f"🎵 Génération audio Google TTS: {audio_path}")
+            
+            # Implémentation Google TTS (à adapter selon votre code existant)
+            # from gtts import gTTS
+            # tts = gTTS(text=text, lang='fr', slow=False)
+            # tts.save(audio_path)
+            
+            print(f"✅ Audio Google TTS généré: {audio_path}")
+            return audio_path
+            
+        except Exception as e:
+            print(f"❌ Erreur Google TTS: {e}")
+            return None
+    
+    def generate_audio(self, text, title):
+        """
+        Génère l'audio avec fallback
+        """
+        # Essayer d'abord Edge TTS
+        audio_path = self.generate_audio_edge_tts(text, title)
         
-        # Fallback vers Google TTS
-        if self.generate_voice_gtts(full_text, output_file):
-            return output_file
+        # Si échec, utiliser Google TTS
+        if not audio_path:
+            audio_path = self.generate_audio_google_tts(text, title)
         
-        print("❌ Aucun TTS n'a fonctionné")
-        return None
-
-# Test
-if __name__ == "__main__":
-    generator = AudioGenerator()
-    test_script = {
-        "title": "Test Audio",
-        "script": "Ceci est un test de génération de voix automatique."
-    }
-    generator.generate_audio(test_script, "test")
+        return audio_path

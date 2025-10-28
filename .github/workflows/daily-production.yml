@@ -39,10 +39,11 @@ jobs:
           YOUTUBE_CHANNEL_ID_1: ${{ secrets.YOUTUBE_CHANNEL_ID_1 }}
         run: python content_factory/auto_content_engine.py
 
+      # ⭐⭐ NOUVELLE ÉTAPE - ARTIFACT ⭐⭐
       - name: Upload video artifact
-        if: always()  # ← Même en cas d'erreur, on récupère la vidéo
+        if: always()
         uses: actions/upload-artifact@v3
         with:
           name: generated-video
           path: output/
-          retention-days: 1  # ← Garde 1 jour pour économiser l'espace
+          retention-days: 1

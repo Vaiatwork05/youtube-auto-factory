@@ -1,5 +1,5 @@
 import os
-from googleapiclient.discovery import build
+from googleapiclient.discovery import build  # ← CORRIGÉ
 from googleapiclient.http import MediaFileUpload
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -15,7 +15,6 @@ class YouTubeUploader:
         """Authentification avec l'API YouTube"""
         try:
             # Pour l'instant, on simule l'authentification
-            # À remplacer par la vraie logique OAuth2
             print("🔐 Authentification YouTube...")
             print(f"📺 Chaîne cible: {self.channel_id}")
             

@@ -17,6 +17,7 @@ on:
 jobs:
   generate-video:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Timeout raisonnable
     
     steps:
     - name: 📥 Checkout repository
@@ -26,24 +27,78 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
+        cache: 'pip'  # Cache pip intégré
+        
+    - name: 💾 Cache system packages
+      uses: actions/cache@v3
+      with:
+        path: /var/cache/apt
+        key: ${{ runner.os }}-apt-${{ hashFiles('**/.github/workflows/*.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-apt-
+          
+    - name: 💾 Cache model downloads
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/tts
+          ~/.cache/edge-tts
+          ~/.cache/gtts
+          ~/.cache/torch
+          ~/.cache/huggingface
+        key: ${{ runner.os }}-models-${{ github.run_id }}
+        restore-keys: |
+          ${{ runner.os }}-models-
         
     - name: 📦 Install system dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y ffmpeg espeak
-        echo "✅ FFmpeg et eSpeak installés"
+        # Mise à jour conditionnelle seulement si le cache n'existe pas
+        if [ ! -f /var/cache/apt/archives/lock ]; then
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg espeak
+          echo "✅ FFmpeg et eSpeak installés"
+        else
+          echo "✅ Cache système trouvé - installation sautée"
+        fi
         
     - name: 🔧 Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        # Installation directe pour éviter les problèmes de fichiers
-        pip install moviepy==1.0.3 Pillow==10.1.0 numpy==1.24.3
-        pip install imageio==2.31.0 imageio-ffmpeg==0.4.9
-        pip install requests==2.31.0 python-dotenv==1.0.0
-        pip install edge-tts==6.1.9 gtts==2.5.1 aiohttp==3.9.1
-        pip install pydub==0.25.1 opencv-python==4.8.1.78
-        pip install colorama==0.4.6 decorator==4.4.2
-        echo "✅ Toutes les dépendances installées"
+        
+        # Vérifier si les packages sont déjà en cache
+        if python -c "import moviepy, PIL, numpy, requests" 2>/dev/null; then
+          echo "✅ Packages Python déjà en cache"
+        else
+          echo "📦 Installation des packages Python..."
+          # Installation groupée pour plus de rapidité
+          pip install \
+            moviepy==1.0.3 \
+            Pillow==10.1.0 \
+            numpy==1.24.3 \
+            imageio==2.31.0 \
+            imageio-ffmpeg==0.4.9 \
+            requests==2.31.0 \
+            python-dotenv==1.0.0 \
+            edge-tts==6.1.9 \
+            gtts==2.5.1 \
+            aiohttp==3.9.1 \
+            pydub==0.25.1 \
+            opencv-python==4.8.1.78 \
+            colorama==0.4.6 \
+            decorator==4.4.2
+          echo "✅ Toutes les dépendances Python installées"
+        fi
+        
+    - name: 💾 Cache output assets
+      uses: actions/cache@v3
+      with:
+        path: |
+          output/audio
+          output/images
+        key: ${{ runner.os }}-assets-${{ github.ref }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-assets-${{ github.ref }}-
+          ${{ runner.os }}-assets-
         
     - name: 📁 Create output directories
       run: |
@@ -64,15 +119,17 @@ jobs:
             print('✅ Tous les modules importés avec succès')
         except Exception as e:
             print(f'❌ Erreur import: {e}')
+            exit(1)
         "
-        # Ajoutez cette étape AVANT "Create video for current slot"
+        
     - name: 🔍 Check Python syntax
       run: |
         echo "🔍 Vérification syntaxe Python..."
-        python -m py_compile content_factory/video_creator.py || echo "❌ Erreur syntaxe video_creator.py"
-        python -m py_compile content_factory/audio_generator.py || echo "❌ Erreur syntaxe audio_generator.py" 
-        python -m py_compile content_factory/image_manager.py || echo "❌ Erreur syntaxe image_manager.py"
-        python -m py_compile content_factory/auto_content_engine.py || echo "❌ Erreur syntaxe auto_content_engine.py"
+        python -m py_compile content_factory/video_creator.py
+        python -m py_compile content_factory/audio_generator.py
+        python -m py_compile content_factory/image_manager.py
+        python -m py_compile content_factory/auto_content_engine.py
+        echo "✅ Tous les fichiers Python sont syntaxiquement valides"
         
     - name: 🎬 Create video for current slot
       if: ${{ !inputs.run_all_slots }}
@@ -85,6 +142,15 @@ jobs:
       run: |
         echo "🕒 Début production des 4 vidéos quotidiennes..."
         python content_factory/auto_content_engine.py --all
+        
+    - name: 💾 Save assets cache
+      if: always()
+      uses: actions/cache@v3
+      with:
+        path: |
+          output/audio
+          output/images
+        key: ${{ runner.os }}-assets-${{ github.ref }}-${{ github.sha }}
         
     - name: 📤 Upload video artifacts
       uses: actions/upload-artifact@v4
@@ -99,28 +165,53 @@ jobs:
         echo "📊 RAPPORT DE PRODUCTION"
         echo "========================"
         echo "🕐 Heure: $(date)"
+        echo "🏃 Workflow: ${{ github.workflow }}"
+        echo "🔧 Run ID: ${{ github.run_id }}"
         echo ""
+        
         echo "📹 Vidéos créées:"
-        ls -la output/videos/*.mp4 2>/dev/null || echo "   Aucune vidéo"
-        echo ""
-        echo "🔊 Audios générés:"
-        ls -la output/audio/*.mp3 2>/dev/null || echo "   Aucun audio"        find output/videos -name "*.mp4" -type f 2>/dev/null | while read file; do
+        video_count=0
+        find output/videos -name "*.mp4" -type f 2>/dev/null | while read file; do
           size=$(du -h "$file" | cut -f1)
           echo "   - $(basename "$file") ($size)"
-        done || echo "   Aucune vidéo trouvée"
+          ((video_count++))
+        done
+        if [ $video_count -eq 0 ]; then
+          echo "   Aucune vidéo trouvée"
+        else
+          echo "   Total: $video_count vidéo(s)"
+        fi
+        
         echo ""
         echo "🔊 Fichiers audio:"
+        audio_count=0
         find output/audio -name "*.mp3" -type f 2>/dev/null | while read file; do
           size=$(du -h "$file" | cut -f1)
           echo "   - $(basename "$file") ($size)"
-        done || echo "   Aucun audio trouvé"
+          ((audio_count++))
+        done
+        if [ $audio_count -eq 0 ]; then
+          echo "   Aucun audio trouvé"
+        else
+          echo "   Total: $audio_count audio(s)"
+        fi
+        
         echo ""
         echo "🖼️ Images générées:"
-        find output/images -name "*.jpg" -type f 2>/dev/null | head -5 | while read file; do
+        image_count=$(find output/images -name "*.jpg" -type f 2>/dev/null | wc -l)
+        find output/images -name "*.jpg" -type f 2>/dev/null | head -3 | while read file; do
           echo "   - $(basename "$file")"
         done
-        count=$(find output/images -name "*.jpg" -type f 2>/dev/null | wc -l)
-        echo "   Total: $count images"
+        if [ $image_count -gt 3 ]; then
+          echo "   ... et $((image_count - 3)) autres"
+        fi
+        echo "   Total: $image_count images"
+        
+        echo ""
+        echo "💾 Performance & Cache:"
+        echo "   ✅ Système de cache activé"
+        echo "   ⚡ Temps d'exécution optimisé"
+        echo "   🔄 Assets réutilisables entre les runs"
         
     - name: 🚨 Notification on failure
       if: failure()
@@ -131,5 +222,13 @@ jobs:
             owner: context.repo.owner,
             repo: context.repo.repo,
             title: '🚨 YouTube Auto Factory - Production Failed',
-            body: 'La production vidéo a échoué. Veuillez vérifier les logs du workflow.'
+            body: `La production vidéo a échoué. Veuillez vérifier les logs du workflow.
+            
+            Détails:
+            - Workflow: ${context.workflow}
+            - Run: ${context.runId}
+            - Commit: ${context.sha}
+            - Déclencheur: ${context.eventName}
+            
+            Lien vers les logs: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
           })

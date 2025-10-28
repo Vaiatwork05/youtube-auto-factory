@@ -96,12 +96,7 @@ jobs:
         ls -la output/videos/*.mp4 2>/dev/null || echo "   Aucune vidéo"
         echo ""
         echo "🔊 Audios générés:"
-        ls -la output/audio/*.mp3 2>/dev/null || echo "   Aucun audio"        echo "📊 RAPPORT DE PRODUCTION"
-        echo "========================"
-        echo "🕐 Heure: $(date)"
-        echo ""
-        echo "📹 Vidéos créées:"
-        find output/videos -name "*.mp4" -type f 2>/dev/null | while read file; do
+        ls -la output/audio/*.mp3 2>/dev/null || echo "   Aucun audio"        find output/videos -name "*.mp4" -type f 2>/dev/null | while read file; do
           size=$(du -h "$file" | cut -f1)
           echo "   - $(basename "$file") ($size)"
         done || echo "   Aucune vidéo trouvée"

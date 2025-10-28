@@ -1,25 +1,15 @@
-# 📦 API YouTube & Authentification
+# 🎯 POUR DÉMARRER IMMÉDIATEMENT - 0 CONFLIT
 google-api-python-client==2.108.0
 google-auth-oauthlib==1.1.0
 google-auth-httplib2==0.1.1
-oauth2client==4.1.3
 
-# 🎥 CRÉATION VIDÉO & IMAGE
+# CRÉATION VIDÉO DE BASE
 moviepy==1.0.3
 Pillow==10.0.1
-opencv-python==4.8.1.78
 numpy==1.24.3
 imageio==2.31.1
 imageio-ffmpeg==0.4.9
 decorator==4.4.2
-proglog==0.1.10
 
-# 🌐 REQUÊTES HTTP & UTILITAIRES
+# REQUÊTES
 requests==2.31.0
-urllib3==1.26.18
-certifi==2023.11.17
-charset-normalizer==3.3.2
-
-# 🔤 TEXT-TO-SPEECH (Optionnel)
-edge-tts==6.1.9
-gTTS==2.4.0

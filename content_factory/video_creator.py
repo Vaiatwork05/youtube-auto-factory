@@ -1,88 +1,122 @@
 import os
-from moviepy.editor import ImageClip, AudioFileClip, CompositeVideoClip
+from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, CompositeVideoClip
 from PIL import Image
-from image_manager import ImageManager
-from audio_generator import AudioGenerator
+import numpy as np
+from utils import clean_filename, safe_path_join, ensure_directory
 
 class VideoCreator:
     def __init__(self):
-        self.video_duration = 30  # 30 secondes maintenant
-        self.resolution = (1280, 720)
+        from image_manager import ImageManager
         self.image_manager = ImageManager()
-        self.audio_generator = AudioGenerator()
+        self.output_dir = "output/videos"
+        ensure_directory(self.output_dir)
     
-    def create_professional_video(self, script_data, output_dir="output"):
-        """Crée une vidéo professionnelle avec voix off et images"""
-        
-        os.makedirs(output_dir, exist_ok=True)
-        print("🎬 Création vidéo professionnelle...")
-        
-        # 1. Générer l'audio
-        print("🎙️ Génération de la voix off...")
-        audio_path = self.audio_generator.generate_audio(script_data, script_data["title"])
-        
-        # 2. Préparer l'image de fond avec texte
-        print("🖼️ Préparation des visuels...")
-        image_path = self.image_manager.get_random_science_image()
-        
-        # Nettoyer le texte pour l'overlay
-        clean_title = script_data["title"].replace('?', '').replace('!', '').replace(':', '')
-        words = script_data["script"].split()
-        lines = []
-        current_line = ""
-        
-        for word in words:
-            test_line = current_line + " " + word if current_line else word
-            if len(test_line) < 40:
-                current_line = test_line
-            else:
-                lines.append(current_line)
-                current_line = word
-        if current_line:
-            lines.append(current_line)
-        
-        # Créer l'image avec overlay
-        if image_path:
-            final_image = self.image_manager.create_text_overlay(image_path, clean_title, lines)
-            if final_image:
-                image_path = os.path.join(output_dir, "final_frame.jpg")
-                final_image.save(image_path)
-        
-        # 3. Créer la vidéo
-        print("🎥 Assemblage vidéo...")
-        
-        # Clip image
-        image_clip = ImageClip(image_path, duration=self.video_duration)
-        
-        # Clip audio si généré
-        if audio_path and os.path.exists(audio_path):
+    def create_professional_video(self, content_data, output_dir="output"):
+        """
+        Crée une vidéo professionnelle synchronisée
+        """
+        try:
+            print("🎬 Création vidéo professionnelle...")
+            
+            # Obtenir le script et titre
+            script = content_data.get('script', '')
+            title = content_data.get('title', 'Video')
+            
+            # Nettoyer le titre pour le nom de fichier
+            clean_title = clean_filename(title)
+            video_path = safe_path_join(self.output_dir, f"video_{clean_title}.mp3")
+            
+            # Générer l'audio
+            from audio_generator import AudioGenerator
+            audio_generator = AudioGenerator()
+            audio_path = audio_generator.generate_audio(script, title)
+            
+            if not audio_path or not os.path.exists(audio_path):
+                raise Exception("Audio non généré")
+            
+            # Obtenir des images pertinentes
+            image_paths = self.image_manager.get_images_for_content(content_data, num_images=10)
+            
+            if not image_paths:
+                raise Exception("Aucune image disponible")
+            
+            print(f"🖼️ {len(image_paths)} images disponibles")
+            
+            # Créer la vidéo avec les images et l'audio
+            final_video = self.create_video_from_images_and_audio(image_paths, audio_path, video_path)
+            
+            print(f"✅ Vidéo créée: {video_path}")
+            return video_path
+            
+        except Exception as e:
+            print(f"❌ Erreur création vidéo: {e}")
+            raise
+    
+    def create_simple_video(self, content_data):
+        """
+        Version simplifiée pour la compatibilité
+        """
+        return self.create_professional_video(content_data)
+    
+    def create_video_from_images_and_audio(self, image_paths, audio_path, output_path):
+        """
+        Crée une vidéo à partir d'images et d'audio
+        """
+        try:
+            # Charger l'audio
             audio_clip = AudioFileClip(audio_path)
-            # Ajuster la durée de la vidéo à celle de l'audio
-            actual_duration = audio_clip.duration
-            image_clip = image_clip.set_duration(actual_duration)
-            image_clip = image_clip.set_audio(audio_clip)
-        
-        # Exporter
-        clean_filename = clean_title.replace(' ', '_').replace('/', '_')
-        output_path = os.path.join(output_dir, f"video_{clean_filename}.mp4")
-        
-        image_clip.write_videofile(
-            output_path,
-            fps=24,
-            codec='libx264',
-            audio_codec='aac',
-            verbose=False,
-            logger=None
-        )
-        
-        # Nettoyage
-        for temp_file in [image_path, audio_path] if audio_path else [image_path]:
-            if temp_file and os.path.exists(temp_file) and "temp" in temp_file:
-                os.remove(temp_file)
-        
-        print(f"✅ Vidéo professionnelle créée: {output_path}")
-        return output_path
-
-    def create_simple_video(self, script_data, output_dir="output"):
-        """Alias pour compatibilité"""
-        return self.create_professional_video(script_data, output_dir)
+            audio_duration = audio_clip.duration
+            
+            # Calculer la durée par image
+            num_images = len(image_paths)
+            duration_per_image = audio_duration / num_images
+            
+            print(f"⏱️ Durée audio: {audio_duration:.2f}s, {num_images} images, {duration_per_image:.2f}s par image")
+            
+            # Créer les clips vidéo
+            video_clips = []
+            for i, image_path in enumerate(image_paths):
+                try:
+                    # Créer un clip image avec la durée calculée
+                    image_clip = ImageClip(image_path, duration=duration_per_image)
+                    
+                    # Redimensionner si nécessaire
+                    image_clip = image_clip.resize(height=1080)
+                    
+                    video_clips.append(image_clip)
+                    print(f"📹 Clip {i+1} créé: {os.path.basename(image_path)}")
+                    
+                except Exception as e:
+                    print(f"⚠️ Erreur clip {i+1}: {e}")
+                    continue
+            
+            if not video_clips:
+                raise Exception("Aucun clip vidéo créé")
+            
+            # Concaténer tous les clips
+            final_video = concatenate_videoclips(video_clips, method="compose")
+            
+            # Ajouter l'audio
+            final_video = final_video.set_audio(audio_clip)
+            
+            # Exporter la vidéo
+            final_video.write_videofile(
+                output_path,
+                fps=24,
+                codec='libx264',
+                audio_codec='aac',
+                verbose=False,
+                logger=None
+            )
+            
+            # Fermer les clips pour libérer la mémoire
+            for clip in video_clips:
+                clip.close()
+            final_video.close()
+            audio_clip.close()
+            
+            return output_path
+            
+        except Exception as e:
+            print(f"❌ Erreur création vidéo from images: {e}")
+            raise

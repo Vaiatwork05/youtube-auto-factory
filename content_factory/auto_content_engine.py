@@ -26,10 +26,10 @@ try:
     print(f"📝 Titre: {script_data['title']}")
     print(f"📝 Script: {script_data['script'][:100]}...")
     
-    # ÉTAPE 4: Création de la vidéo
+    # ÉTAPE 4: Création de la vidéo - CORRIGÉ ICI
     print("🔧 ÉTAPE 4: Création de la vidéo...")
     creator = VideoCreator()
-    video_path = creator.create_video(script_data)
+    video_path = creator.create_simple_video(script_data)  # ← CHANGÉ: create_simple_video()
     print(f"🎥 Vidéo créée: {video_path}")
     
     # ÉTAPE 5: Upload YouTube

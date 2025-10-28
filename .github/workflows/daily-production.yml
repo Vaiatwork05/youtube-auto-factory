@@ -9,18 +9,14 @@ on:
         default: false
         type: boolean
   schedule:
-    # 4 exécutions par jour : 8h, 12h, 16h, 20h (UTC)
-    - cron: '0 6 * * *'   # 8h CEST (6h UTC)
-    - cron: '0 10 * * *'  # 12h CEST (10h UTC)
-    - cron: '0 14 * * *'  # 16h CEST (14h UTC)
-    - cron: '0 18 * * *'  # 20h CEST (18h UTC)
+    - cron: '0 6 * * *'   # 8h CEST
+    - cron: '0 10 * * *'  # 12h CEST
+    - cron: '0 14 * * *'  # 16h CEST
+    - cron: '0 18 * * *'  # 20h CEST
 
 jobs:
   generate-video:
     runs-on: ubuntu-latest
-    
-    env:
-      UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
     
     steps:
     - name: 📥 Checkout repository
@@ -34,36 +30,20 @@ jobs:
     - name: 📦 Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y ffmpeg espeak espeak-data libespeak-dev
-        ffmpeg -version
-        espeak --version
+        sudo apt-get install -y ffmpeg espeak
+        echo "✅ FFmpeg et eSpeak installés"
         
-    - name: 🔧 Install core dependencies
+    - name: 🔧 Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements_core.txt
-        
-    - name: 🔧 Install extra dependencies
-      run: |
-        if [ -f "requirements_extra.txt" ]; then
-          pip install -r requirements_extra.txt
-        else
-          echo "⚠️  requirements_extra.txt non trouvé, installation des extras manuelle"
-          pip install google-api-python-client==2.108.0 || echo "Google API optionnel"
-          pip install python-unsplash==1.1.0 || echo "Unsplash optionnel"
-        fi
-        
-    - name: 🧪 Test dependencies
-      run: |
-        python -c "
-        packages = ['moviepy', 'PIL', 'numpy', 'imageio', 'requests', 'edge_tts', 'gtts', 'aiohttp', 'pydub', 'cv2']
-        for pkg in packages:
-            try:
-                if pkg == 'cv2': import cv2
-                else: __import__(pkg)
-                print(f'✅ {pkg}')
-            except: print(f'⚠️  {pkg}')
-        "
+        # Installation directe pour éviter les problèmes de fichiers
+        pip install moviepy==1.0.3 Pillow==10.1.0 numpy==1.24.3
+        pip install imageio==2.31.0 imageio-ffmpeg==0.4.9
+        pip install requests==2.31.0 python-dotenv==1.0.0
+        pip install edge-tts==6.1.9 gtts==2.5.1 aiohttp==3.9.1
+        pip install pydub==0.25.1 opencv-python==4.8.1.78
+        pip install colorama==0.4.6 decorator==4.4.2
+        echo "✅ Toutes les dépendances installées"
         
     - name: 📁 Create output directories
       run: |
@@ -71,37 +51,52 @@ jobs:
         mkdir -p output/audio  
         mkdir -p output/images
         mkdir -p output/logs
-        echo "📁 Dossiers créés"
+        echo "📁 Dossiers de sortie créés"
+        
+    - name: 🧪 Test system
+      run: |
+        echo "🧪 Test du système..."
+        python -c "
+        try:
+            from content_factory.video_creator import VideoCreator
+            from content_factory.audio_generator import AudioGenerator  
+            from content_factory.image_manager import ImageManager
+            print('✅ Tous les modules importés avec succès')
+        except Exception as e:
+            print(f'❌ Erreur import: {e}')
+        "
         
     - name: 🎬 Create video for current slot
-      id: create_video
       if: ${{ !inputs.run_all_slots }}
       run: |
         echo "🕒 Début production vidéo pour créneau actuel..."
         python content_factory/auto_content_engine.py
-      continue-on-error: true
-      
+        
     - name: 🎬 Create all daily videos  
-      id: create_all_videos
       if: ${{ inputs.run_all_slots }}
       run: |
         echo "🕒 Début production des 4 vidéos quotidiennes..."
         python content_factory/auto_content_engine.py --all
-      continue-on-error: true
         
     - name: 📤 Upload video artifacts
-      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: youtube-videos-${{ github.run_id }}-${{ github.run_attempt }}
-        path: |
-          output/
+        name: youtube-videos-${{ github.run_id }}
+        path: output/
         retention-days: 1
         
     - name: 📊 Show production summary
       if: always()
       run: |
         echo "📊 RAPPORT DE PRODUCTION"
+        echo "========================"
+        echo "🕐 Heure: $(date)"
+        echo ""
+        echo "📹 Vidéos créées:"
+        ls -la output/videos/*.mp4 2>/dev/null || echo "   Aucune vidéo"
+        echo ""
+        echo "🔊 Audios générés:"
+        ls -la output/audio/*.mp3 2>/dev/null || echo "   Aucun audio"        echo "📊 RAPPORT DE PRODUCTION"
         echo "========================"
         echo "🕐 Heure: $(date)"
         echo ""

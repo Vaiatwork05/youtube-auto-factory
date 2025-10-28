@@ -65,6 +65,14 @@ jobs:
         except Exception as e:
             print(f'❌ Erreur import: {e}')
         "
+        # Ajoutez cette étape AVANT "Create video for current slot"
+    - name: 🔍 Check Python syntax
+      run: |
+        echo "🔍 Vérification syntaxe Python..."
+        python -m py_compile content_factory/video_creator.py || echo "❌ Erreur syntaxe video_creator.py"
+        python -m py_compile content_factory/audio_generator.py || echo "❌ Erreur syntaxe audio_generator.py" 
+        python -m py_compile content_factory/image_manager.py || echo "❌ Erreur syntaxe image_manager.py"
+        python -m py_compile content_factory/auto_content_engine.py || echo "❌ Erreur syntaxe auto_content_engine.py"
         
     - name: 🎬 Create video for current slot
       if: ${{ !inputs.run_all_slots }}

@@ -31,7 +31,7 @@ class ImageManager:
     
     def get_images_for_content(self, content_data, num_images=8):
         """
-        Récupère les images pour le contenu - MÉTHODE MANQUANTE AJOUTÉE
+        Récupère les images pour le contenu
         """
         self.logger.info(f"🖼️  Récupération de {num_images} images pour le contenu")
         
@@ -138,7 +138,7 @@ class ImageManager:
     
     def unsplash_search(self, query, count=5):
         """
-        Recherche d'images sur Unsplash - EXISTANT DANS VOTRE CODE
+        Recherche d'images sur Unsplash
         """
         try:
             if not self.unsplash_access_key:
@@ -223,7 +223,7 @@ class ImageManager:
     
     def create_placeholder_image(self, keyword, index):
         """
-        Crée une image placeholder attrayante - EXISTANT DANS VOTRE CODE
+        Crée une image placeholder attrayante
         """
         try:
             # Dimensions HD
@@ -322,7 +322,7 @@ if __name__ == "__main__":
             'keywords': ['nature', 'paysage', 'montagne', 'forêt']
         }
         
-        # Test de la méthode manquante
+        # Test de la méthode
         images = manager.get_images_for_content(test_content, num_images=4)
         
         print(f"✅ {len(images)} images obtenues:")
@@ -332,99 +332,4 @@ if __name__ == "__main__":
         return len(images) > 0
     
     # Exécuter le test
-    test_image_manager()        filename = f"placeholder_{safe_query}_{index}.jpg"
-        filepath = os.path.join(self.download_folder, filename)
-        
-        try:
-            colors = [
-                (74, 144, 226), (231, 76, 60), (39, 174, 96),
-                (155, 89, 182), (241, 196, 15)
-            ]
-            
-            color = colors[index % len(colors)]
-            img = Image.new('RGB', (1920, 1080), color=color)
-            draw = ImageDraw.Draw(img)
-            
-            # Essayer différentes polices
-            try:
-                font_size = 48
-                font = ImageFont.truetype("arial.ttf", font_size)
-            except:
-                try:
-                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-                except:
-                    font = ImageFont.load_default()
-            
-            text = f"{query.upper()}"
-            bbox = draw.textbbox((0, 0), text, font=font)
-            text_width = bbox[2] - bbox[0]
-            x = (1920 - text_width) // 2
-            y = (1080 - 48) // 2
-            
-            draw.text((x, y), text, fill=(255, 255, 255), font=font)
-            img.save(filepath, quality=95)
-            print(f"🖼️ Placeholder créé: {filename}")
-            
-        except Exception as e:
-            print(f"❌ Erreur création placeholder: {e}")
-            open(filepath, 'a').close()
-        
-        return filepath
-    
-    def search_images_by_keywords(self, keywords, text_segment="", num_images=5):
-        """Recherche des images avec Unsplash + fallback"""
-        if not keywords:
-            keywords = self.extract_keywords(text_segment)
-        
-        print(f"🔑 Mots-clés: {keywords}")
-        
-        downloaded_images = []
-        
-        # Essayer Unsplash pour chaque mot-clé
-        for keyword in keywords[:3]:
-            if len(downloaded_images) >= num_images:
-                break
-                
-            print(f"🎯 Recherche Unsplash: '{keyword}'")
-            unsplash_urls = self.search_unsplash(keyword, min(2, num_images - len(downloaded_images)))
-            
-            for i, image_url in enumerate(unsplash_urls):
-                filename = clean_filename(f"{keyword}_{i}_{int(time.time())}.jpg")
-                local_path = self.download_image(image_url, filename)
-                
-                if local_path:
-                    downloaded_images.append(local_path)
-                    print(f"⬇️ Image téléchargée: {filename}")
-            
-            time.sleep(0.5)  # Pause entre requêtes
-        
-        # Compléter avec des placeholders si nécessaire
-        while len(downloaded_images) < num_images:
-            placeholder_keyword = keywords[len(downloaded_images) % len(keywords)] if keywords else "science"
-            placeholder = self.create_placeholder_image(placeholder_keyword, len(downloaded_images))
-            downloaded_images.append(placeholder)
-        
-        print(f"✅ {len(downloaded_images)} images obtenues")
-        return downloaded_images[:num_images]
-    
-    def get_images_for_content(self, content_data, num_images=10):
-        """Obtient des images pertinentes pour le contenu"""
-        script = content_data.get('script', '')
-        title = content_data.get('title', '')
-        
-        full_text = f"{title} {script}"
-        keywords = self.extract_keywords(full_text)
-        
-        print(f"📝 Analyse: {title}")
-        print(f"🔍 Mots-clés extraits: {keywords}")
-        
-        return self.search_images_by_keywords(keywords, full_text, num_images)
-
-# Fonctions utilitaires
-def get_images_for_content(content_data, num_images=10):
-    manager = ImageManager()
-    return manager.get_images_for_content(content_data, num_images)
-
-def extract_keywords(text, max_keywords=5):
-    manager = ImageManager()
-    return manager.extract_keywords(text, max_keywords)
+    test_image_manager()

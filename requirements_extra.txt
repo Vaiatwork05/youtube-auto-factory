@@ -1,0 +1,6 @@
+# requirements_extra.txt - Dépendances optionnelles
+google-api-python-client==2.108.0
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+python-unsplash==1.1.0
+librosa==0.10.1

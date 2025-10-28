@@ -38,3 +38,11 @@ jobs:
           YOUTUBE_REFRESH_TOKEN_1: ${{ secrets.YOUTUBE_REFRESH_TOKEN_1 }}
           YOUTUBE_CHANNEL_ID_1: ${{ secrets.YOUTUBE_CHANNEL_ID_1 }}
         run: python content_factory/auto_content_engine.py
+
+      - name: Upload video artifact
+        if: always()  # ← Même en cas d'erreur, on récupère la vidéo
+        uses: actions/upload-artifact@v3
+        with:
+          name: generated-video
+          path: output/
+          retention-days: 1  # ← Garde 1 jour pour économiser l'espace

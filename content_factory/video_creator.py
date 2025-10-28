@@ -77,6 +77,9 @@ class VideoCreator:
         """
         Crée une vidéo à partir d'images et d'audio
         """
+        video_clips = []
+        audio_clip = None
+        
         try:
             # Vérifier que l'audio existe
             if not os.path.exists(audio_path):
@@ -99,11 +102,185 @@ class VideoCreator:
             print(f"⏰ Durée par image: {duration_per_image:.2f}s")
             
             # Créer les clips vidéo
-            video_clips = []
             valid_images = []
             
             for i, image_path in enumerate(image_paths):
                 try:
+                    # Vérifier que l'image existe
+                    if not os.path.exists(image_path):
+                        print(f"⚠️ Image manquante: {image_path}")
+                        continue
+                    
+                    # Vérifier que l'image est valide
+                    try:
+                        with Image.open(image_path) as img:
+                            img.verify()
+                    except Exception:
+                        print(f"⚠️ Image corrompue: {image_path}")
+                        continue
+                    
+                    print(f"📹 Création clip {i+1}/{num_images}: {os.path.basename(image_path)}")
+                    
+                    # Créer un clip image avec la durée calculée
+                    image_clip = ImageClip(image_path, duration=duration_per_image)
+                    
+                    # Redimensionner pour format 16:9 (1920x1080)
+                    image_clip = image_clip.resize(height=1080)
+                    
+                    # Assurer la largeur minimum
+                    if image_clip.w < 1920:
+                        image_clip = image_clip.resize(width=1920)
+                    
+                    video_clips.append(image_clip)
+                    valid_images.append(image_path)
+                    
+                except Exception as e:
+                    print(f"⚠️ Erreur création clip {i+1}: {e}")
+                    continue
+            
+            if not video_clips:
+                raise Exception("Aucun clip vidéo créé - toutes les images ont échoué")
+            
+            print(f"✅ {len(video_clips)} clips créés avec succès")
+            
+            # Concaténer tous les clips
+            print("🎞️ Concaténation des clips...")
+            final_video = concatenate_videoclips(video_clips, method="compose")
+            
+            # Ajouter l'audio
+            print("🔊 Ajout de l'audio...")
+            final_video = final_video.set_audio(audio_clip)
+            final_video = final_video.set_duration(audio_duration)
+            
+            # Exporter la vidéo
+            print("📤 Export de la vidéo...")
+            final_video.write_videofile(
+                output_path,
+                fps=24,
+                codec='libx264',
+                audio_codec='aac',
+                verbose=False,
+                logger=None,
+                threads=4,
+                preset='medium',
+                bitrate='2000k'
+            )
+            
+            print(f"✅ Vidéo exportée: {output_path}")
+            
+            return output_path
+            
+        except Exception as e:
+            print(f"❌ Erreur création vidéo from images: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+        
+        finally:
+            # Nettoyer la mémoire dans tous les cas
+            print("🧹 Nettoyage mémoire...")
+            try:
+                for clip in video_clips:
+                    clip.close()
+            except:
+                pass
+            
+            try:
+                if audio_clip:
+                    audio_clip.close()
+            except:
+                pass
+            
+            try:
+                if 'final_video' in locals():
+                    final_video.close()
+            except:
+                pass
+    
+    def create_fallback_video(self, content_data, output_dir="output"):
+        """
+        Crée une vidéo de secours en cas d'erreur
+        """
+        try:
+            print("🔄 Création vidéo de secours...")
+            
+            title = content_data.get('title', 'Video de secours')
+            clean_title = clean_filename(title)
+            video_path = safe_path_join(self.output_dir, f"fallback_{clean_title}.mp4")
+            
+            # Créer une image simple
+            from image_manager import ImageManager
+            img_manager = ImageManager()
+            image_path = img_manager.create_placeholder_image("secours", 0)
+            
+            # Créer un audio simple
+            from audio_generator import AudioGenerator
+            audio_gen = AudioGenerator()
+            audio_path = audio_gen.generate_audio_google_tts(
+                "Ceci est une vidéo de secours.", 
+                f"secours_{clean_title}"
+            )
+            
+            # Créer une vidéo simple
+            image_clip = ImageClip(image_path, duration=10)
+            audio_clip = AudioFileClip(audio_path)
+            final_clip = image_clip.set_audio(audio_clip)
+            final_clip = final_clip.set_duration(10)
+            
+            final_clip.write_videofile(
+                video_path,
+                fps=24,
+                verbose=False,
+                logger=None
+            )
+            
+            # Nettoyer
+            image_clip.close()
+            audio_clip.close()
+            final_clip.close()
+            
+            print(f"✅ Vidéo de secours créée: {video_path}")
+            return video_path
+            
+        except Exception as e:
+            print(f"❌ Erreur vidéo de secours: {e}")
+            return None
+
+# Fonction utilitaire pour usage direct
+def create_video(content_data):
+    """
+    Fonction helper pour créer une vidéo
+    """
+    creator = VideoCreator()
+    return creator.create_professional_video(content_data)
+
+def create_simple_video(content_data):
+    """
+    Fonction helper pour créer une vidéo simple
+    """
+    creator = VideoCreator()
+    return creator.create_simple_video(content_data)
+
+# Test du module
+if __name__ == "__main__":
+    print("🧪 Test de VideoCreator...")
+    
+    test_content = {
+        'title': 'Test Vidéo Creator',
+        'script': 'Ceci est un test de création vidéo.',
+        'category': 'test'
+    }
+    
+    try:
+        creator = VideoCreator()
+        video_path = creator.create_professional_video(test_content)
+        print(f"✅ Test réussi: {video_path}")
+    except Exception as e:
+        print(f"❌ Test échoué: {e}")
+        # Essayer la version de secours
+        fallback_path = creator.create_fallback_video(test_content)
+        if fallback_path:
+            print(f"✅ Vidéo de secours créée: {fallback_path}")                try:
                     # Vérifier que l'image existe
                     if not os.path.exists(image_path):
                         print(f"⚠️ Image manquante: {image_path}")

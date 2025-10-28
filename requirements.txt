@@ -1,4 +1,4 @@
-# 🎯 POUR DÉMARRER IMMÉDIATEMENT - 0 CONFLIT
+# 📦 API YouTube & Authentification
 google-api-python-client==2.108.0
 google-auth-oauthlib==1.1.0
 google-auth-httplib2==0.1.1
@@ -11,5 +11,6 @@ imageio==2.31.1
 imageio-ffmpeg==0.4.9
 decorator==4.4.2
 
-# REQUÊTES
+# REQUÊTES & UTILITAIRES
 requests==2.31.0
+packaging==23.2

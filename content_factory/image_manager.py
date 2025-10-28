@@ -40,12 +40,12 @@ class ImageManager:
         self.logger.info(f"🔑 Mots-clés extraits: {keywords}")
         
         # Récupérer les images avec fallback
-        images = self.get_images_with_fallback(keywords, num_images)
+        images = self._get_images_with_fallback(keywords, num_images)
         
         self.logger.info(f"✅ {len(images)} images obtenues")
         return images
     
-    def get_images_with_fallback(self, keywords, num_images):
+    def _get_images_with_fallback(self, keywords, num_images):
         """
         Système de fallback pour la récupération d'images
         """
@@ -104,6 +104,214 @@ class ImageManager:
         words = text.lower().split()
         keywords = []
         
+        for word in words:
+            # Nettoyer le mot
+            clean_word = ''.join(c for c in word if c.isalnum() or c in ('-', '_'))
+            if (clean_word and len(clean_word) > 2 and 
+                clean_word not in stop_words and
+                not clean_word.isnumeric()):
+                keywords.append(clean_word)
+        
+        return keywords
+    
+    def _try_unsplash_search(self, keywords, num_images):
+        """
+        Tente une recherche Unsplash avec gestion d'erreurs
+        """
+        images = []
+        
+        for keyword in keywords[:3]:  # Maximum 3 mots-clés pour Unsplash
+            if len(images) >= num_images:
+                break
+                
+            try:
+                self.logger.info(f"🔍 Recherche Unsplash: '{keyword}'")
+                unsplash_images = self._unsplash_search(keyword, num_images - len(images))
+                images.extend(unsplash_images)
+                time.sleep(0.5)  # Respect rate limit
+                
+            except Exception as e:
+                self.logger.error(f"❌ Erreur Unsplash pour '{keyword}': {e}")
+                continue
+        
+        return images
+    
+    def _unsplash_search(self, query, count=5):
+        """
+        Recherche d'images sur Unsplash
+        """
+        try:
+            if not self.unsplash_access_key:
+                raise ValueError("Clé API Unsplash non configurée")
+            
+            headers = {
+                'Authorization': f'Client-ID {self.unsplash_access_key}'
+            }
+            
+            params = {
+                'query': query,
+                'per_page': count,
+                'orientation': 'landscape'
+            }
+            
+            response = requests.get(
+                'https://api.unsplash.com/search/photos',
+                headers=headers,
+                params=params,
+                timeout=10
+            )
+            
+            if response.status_code == 401:
+                self.logger.error("❌ Erreur 401 Unsplash: Clé API invalide")
+                return []
+            elif response.status_code != 200:
+                self.logger.error(f"❌ Erreur Unsplash {response.status_code}: {response.text}")
+                return []
+            
+            data = response.json()
+            images = []
+            
+            for photo in data.get('results', [])[:count]:
+                image_url = photo['urls']['regular']
+                image_filename = f"unsplash_{query}_{photo['id']}.jpg"
+                image_path = safe_path_join(self.output_dir, image_filename)
+                
+                # Télécharger l'image
+                if self._download_image(image_url, image_path):
+                    images.append(image_path)
+            
+            self.logger.info(f"✅ {len(images)} images Unsplash téléchargées pour '{query}'")
+            return images
+            
+        except requests.exceptions.Timeout:
+            self.logger.error(f"❌ Timeout Unsplash pour '{query}'")
+            return []
+        except Exception as e:
+            self.logger.error(f"❌ Erreur recherche Unsplash: {e}")
+            return []
+    
+    def _download_image(self, url, save_path):
+        """
+        Télécharge une image depuis une URL
+        """
+        try:
+            response = requests.get(url, timeout=10, stream=True)
+            response.raise_for_status()
+            
+            with open(save_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ Erreur téléchargement image: {e}")
+            return False
+    
+    def _create_placeholder_images(self, keywords, count):
+        """
+        Crée des images placeholder de haute qualité
+        """
+        placeholders = []
+        
+        for i in range(count):
+            keyword = keywords[i % len(keywords)] if keywords else "image"
+            placeholder_path = self.create_placeholder_image(keyword, i)
+            placeholders.append(placeholder_path)
+        
+        return placeholders
+    
+    def create_placeholder_image(self, keyword, index):
+        """
+        Crée une image placeholder attrayante
+        """
+        try:
+            # Dimensions HD
+            width, height = 1280, 720
+            
+            # Créer l'image avec fond coloré
+            color = random.choice(self.colors)
+            img = Image.new('RGB', (width, height), color=color)
+            draw = ImageDraw.Draw(img)
+            
+            # Essayer de charger une police, sinon utiliser la police par défaut
+            try:
+                font_size = 60
+                font = ImageFont.truetype("arial.ttf", font_size)
+            except:
+                try:
+                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+                except:
+                    font = ImageFont.load_default()
+            
+            # Calculer la position du texte
+            text = keyword.upper()
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            
+            x = (width - text_width) // 2
+            y = (height - text_height) // 2
+            
+            # Ajouter le texte avec ombre
+            shadow_color = (0, 0, 0, 128)
+            text_color = (255, 255, 255)
+            
+            # Ombre
+            draw.text((x+2, y+2), text, font=font, fill=shadow_color)
+            # Texte principal
+            draw.text((x, y), text, font=font, fill=text_color)
+            
+            # Sauvegarder l'image
+            filename = f"placeholder_{clean_filename(keyword)}_{index}.jpg"
+            filepath = safe_path_join(self.output_dir, filename)
+            img.save(filepath, quality=85)
+            
+            self.logger.info(f"🖼️  Placeholder créé: {filename}")
+            return filepath
+            
+        except Exception as e:
+            self.logger.error(f"❌ Erreur création placeholder: {e}")
+            # Fallback ultra simple
+            filename = f"placeholder_{keyword}_{index}.jpg"
+            filepath = safe_path_join(self.output_dir, filename)
+            Image.new('RGB', (1280, 720), color=(100, 100, 100)).save(filepath)
+            return filepath
+
+# Fonction utilitaire pour usage direct
+def get_images_for_content(content_data, num_images=8):
+    """
+    Fonction helper pour récupérer des images
+    """
+    manager = ImageManager()
+    return manager.get_images_for_content(content_data, num_images)
+
+# Test du module
+if __name__ == "__main__":
+    def test_image_manager():
+        """Test du ImageManager"""
+        print("🧪 Test du ImageManager...")
+        
+        manager = ImageManager()
+        
+        # Données de test
+        test_content = {
+            'title': 'La beauté de la nature et des paysages',
+            'description': 'Découvrez les plus beaux paysages naturels du monde',
+            'keywords': ['nature', 'paysage', 'montagne', 'forêt']
+        }
+        
+        # Test de la méthode
+        images = manager.get_images_for_content(test_content, num_images=4)
+        
+        print(f"✅ {len(images)} images obtenues:")
+        for img in images:
+            print(f"   - {img}")
+        
+        return len(images) > 0
+    
+    # Exécuter le test
+    test_image_manager()        
         for word in words:
             # Nettoyer le mot
             clean_word = ''.join(c for c in word if c.isalnum() or c in ('-', '_'))

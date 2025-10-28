@@ -39,7 +39,7 @@ librosa==0.10.1
 # IMAGES & MULTIMÉDIA
 # ======================
 opencv-python==4.8.1.78
-unsplash-py==0.1.2
+unsplash==0.1.2
 
 # ======================
 # ASYNCHRONE & FICHIERS

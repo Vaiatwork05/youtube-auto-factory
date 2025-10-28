@@ -289,19 +289,4 @@ if __name__ == "__main__":
         return result is not None
     
     # Exécuter le test
-    test_audio_generator()            audio_path = self.generate_audio_silence(text, title)
-        
-        if audio_path:
-            print(f"✅ Audio généré avec succès: {audio_path}")
-        else:
-            print("❌ Échec complet de la génération audio")
-            
-        return audio_path
-
-# Fonction utilitaire pour usage direct
-def generate_audio(text, title):
-    """
-    Fonction helper pour générer de l'audio
-    """
-    generator = AudioGenerator()
-    return generator.generate_audio(text, title)
+    test_audio_generator()

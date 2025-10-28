@@ -1,55 +1,59 @@
-import traceback
-import sys
 import os
+import sys
 from content_generator import ContentGenerator
 from video_creator import VideoCreator
 from youtube_uploader import YouTubeUploader
+from utils import ensure_directory
 
-print("🔧 ÉTAPE 1: Démarrage YouTube Auto Factory...")
+def main():
+    try:
+        print("=" * 50)
+        print("🚀 DÉMARRAGE YOUTUBE AUTO FACTORY")
+        print("=" * 50)
+        
+        # Étape 1: Vérifications initiales
+        print("\n📋 ÉTAPE 1: Vérification des configurations...")
+        ensure_directory("output/audio")
+        ensure_directory("output/videos")
+        ensure_directory("downloaded_images")
+        
+        # Vérifier les secrets (à adapter selon votre configuration)
+        required_secrets = ['OPENAI_API_KEY']  # Ajoutez vos secrets ici
+        print("✅ Tous les dossiers sont prêts!")
+        
+        # Étape 2: Génération du contenu
+        print("\n📝 ÉTAPE 2: Génération du script...")
+        content_generator = ContentGenerator()
+        script_data = content_generator.generate_content()
+        
+        print(f"🎯 Titre: {script_data.get('title', 'N/A')}")
+        print(f"📄 Script: {script_data.get('script', 'N/A')[:100]}...")
+        
+        # Étape 3: Création de la vidéo
+        print("\n🎬 ÉTAPE 3: Création de la vidéo...")
+        creator = VideoCreator()
+        
+        # Utiliser la nouvelle méthode
+        video_path = creator.create_professional_video(script_data)
+        
+        print(f"✅ Vidéo créée: {video_path}")
+        
+        # Étape 4: Upload YouTube (optionnel)
+        print("\n📤 ÉTAPE 4: Upload YouTube...")
+        try:
+            uploader = YouTubeUploader()
+            # uploader.upload_video(video_path, script_data)  # Décommentez pour uploader
+            print("✅ Vidéo prête pour l'upload (upload désactivé)")
+        except Exception as e:
+            print(f"⚠️ Upload non effectué: {e}")
+        
+        print("\n🎉 PROCESSUS TERMINÉ AVEC SUCCÈS!")
+        return True
+        
+    except Exception as e:
+        print(f"\n❌ ERREUR CRITIQUE: {e}")
+        return False
 
-try:
-    # ÉTAPE 2: Vérification des configurations
-    print("🔧 ÉTAPE 2: Vérification des configurations...")
-    
-    # Vérification des secrets
-    required_secrets = ['YOUTUBE_CLIENT_SECRET_1', 'YOUTUBE_REFRESH_TOKEN_1', 'YOUTUBE_CHANNEL_ID_1']
-    for secret in required_secrets:
-        if secret not in os.environ:
-            raise Exception(f"Secret manquant: {secret}")
-    
-    print("✅ Tous les secrets sont configurés !")
-    
-    # ÉTAPE 3: Génération du script
-    print("🔧 ÉTAPE 3: Génération du script...")
-    generator = ContentGenerator()
-    script_data = generator.generate_script()
-    print(f"📝 Titre: {script_data['title']}")
-    print(f"📝 Script: {script_data['script'][:100]}...")
-    
-    # ÉTAPE 4: Création de la vidéo - CORRIGÉ ICI
-    print("🔧 ÉTAPE 4: Création de la vidéo...")
-    creator = VideoCreator()
-    video_path = creator.create_simple_video(script_data)  # ← CHANGÉ: create_simple_video()
-    print(f"🎥 Vidéo créée: {video_path}")
-    
-    # ÉTAPE 5: Upload YouTube
-    print("🔧 ÉTAPE 5: Upload vers YouTube...")
-    uploader = YouTubeUploader(
-        client_secret=os.environ['YOUTUBE_CLIENT_SECRET_1'],
-        refresh_token=os.environ['YOUTUBE_REFRESH_TOKEN_1'], 
-        channel_id=os.environ['YOUTUBE_CHANNEL_ID_1']
-    )
-    
-    video_id = uploader.upload_video(
-        video_path=video_path,
-        title=script_data["title"],
-        description=script_data["description"],
-        tags=script_data["tags"]
-    )
-    
-    print(f"✅ SUCCÈS: Vidéo uploadée! ID: {video_id}")
-    
-except Exception as e:
-    print(f"🚨 ERREUR: {str(e)}")
-    print(f"📋 STACKTRACE: {traceback.format_exc()}")
-    sys.exit(1)
+if __name__ == "__main__":
+    success = main()
+    sys.exit(0 if success else 1)

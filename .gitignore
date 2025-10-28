@@ -205,3 +205,39 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# =======================
+# 🚨 ULTRA-IMPORTANT
+# =======================
+
+# Fichiers avec clés API - NE JAMAIS COMMITER
+.env
+.env.*
+
+# =======================
+# 📁 DOSSIERS AUTO-GÉNÉRÉS
+# =======================
+
+# Contenu généré par l'application
+output/
+downloaded_images/
+
+# =======================
+# 🐍 PYTHON
+# =======================
+
+# Cache Python
+__pycache__/
+*.pyc
+
+# =======================
+# 🔧 DÉVELOPPEMENT
+# =======================
+
+# IDE
+.vscode/
+.idea/
+
+# Système
+.DS_Store
+Thumbs.db

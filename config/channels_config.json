@@ -1,5 +1,8 @@
 {
   "channels": {
-    "1": {"name": "Science Auto", "target_rpm": 4.0}
+    "1": {
+      "name": "Science Auto Daily",  // ← Nom EXACT
+      "target_rpm": 4.0
+    }
   }
 }

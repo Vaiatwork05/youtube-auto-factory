@@ -3,6 +3,7 @@ import os
 import sys
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
 from PIL import Image
+from content_factory.utils import clean_filename, safe_path_join 
 import time
 
 class VideoCreator:

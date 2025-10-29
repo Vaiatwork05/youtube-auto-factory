@@ -169,6 +169,132 @@ jobs:
         video_count=0
         find output/videos -name "*.mp4" -type f 2>/dev/null | while read file; do
           size=$(du -h "$file" | cut -f1)
+          echo "   - $(basename \"$file\") ($size)"
+          ((video_count++))
+        done
+        if [ $video_count -eq 0 ]; then
+          echo "   Aucune vidéo trouvée"
+        else
+          echo "   Total: $video_count vidéo(s)"
+        fi
+        
+        echo ""
+        echo "🔊 Fichiers audio:"
+        audio_count=0
+        find output/audio -name "*.mp3" -type f 2>/dev/null | while read file; do
+          size=$(du -h "$file" | cut -f1)
+          echo "   - $(basename \"$file\") ($size)"
+          ((audio_count++))
+        done
+        if [ $audio_count -eq 0 ]; then
+          echo "   Aucun audio trouvé"
+        else
+          echo "   Total: $audio_count audio(s)"
+        fi
+        
+        echo ""
+        echo "🖼️ Images générées:"
+        image_count=$(find output/images -name "*.jpg" -type f 2>/dev/null | wc -l)
+        find output/images -name "*.jpg" -type f 2>/dev/null | head -3 | while read file; do
+          echo "   - $(basename \"$file\")"
+        done
+        if [ $image_count -gt 3 ]; then
+          echo "   ... et $((image_count - 3)) autres"
+        fi
+        echo "   Total: $image_count images"
+        
+        echo ""
+        echo "💾 Performance & Cache:"
+        echo "   ✅ Système de cache activé"
+        echo "   ⚡ Temps d'exécution optimisé"
+        echo "   🔄 Assets réutilisables entre les runs"
+        
+    - name: 🚨 Notification on failure
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: '🚨 YouTube Auto Factory - Production Failed',
+            body: `La production vidéo a échoué. Veuillez vérifier les logs du workflow.
+            
+            Détails:
+            - Workflow: ${context.workflow}
+            - Run: ${context.runId}
+            - Commit: ${context.sha}
+            - Déclencheur: ${context.eventName}
+            
+            Lien vers les logs: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+          })        mkdir -p output/logs
+        echo "📁 Dossiers de sortie créés"
+        
+    - name: 🧪 Test system
+      run: |
+        echo "🧪 Test du système..."
+        python -c "
+        try:
+            from content_factory.video_creator import VideoCreator
+            from content_factory.audio_generator import AudioGenerator  
+            from content_factory.image_manager import ImageManager
+            print('✅ Tous les modules importés avec succès')
+        except Exception as e:
+            print(f'❌ Erreur import: {e}')
+            exit(1)
+        "
+        
+    - name: 🔍 Check Python syntax
+      run: |
+        echo "🔍 Vérification syntaxe Python..."
+        python -m py_compile content_factory/video_creator.py
+        python -m py_compile content_factory/audio_generator.py
+        python -m py_compile content_factory/image_manager.py
+        python -m py_compile content_factory/auto_content_engine.py
+        echo "✅ Tous les fichiers Python sont syntaxiquement valides"
+        
+    - name: 🎬 Create video for current slot
+      if: ${{ !inputs.run_all_slots }}
+      run: |
+        echo "🕒 Début production vidéo pour créneau actuel..."
+        python content_factory/auto_content_engine.py
+        
+    - name: 🎬 Create all daily videos  
+      if: ${{ inputs.run_all_slots }}
+      run: |
+        echo "🕒 Début production des 4 vidéos quotidiennes..."
+        python content_factory/auto_content_engine.py --all
+        
+    - name: 💾 Save assets cache
+      if: always()
+      uses: actions/cache@v3
+      with:
+        path: |
+          output/audio
+          output/images
+        key: ${{ runner.os }}-assets-${{ github.ref }}-${{ github.sha }}
+        
+    - name: 📤 Upload video artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: youtube-videos-${{ github.run_id }}
+        path: output/
+        retention-days: 1
+        
+    - name: 📊 Show production summary
+      if: always()
+      run: |
+        echo "📊 RAPPORT DE PRODUCTION"
+        echo "========================"
+        echo "🕐 Heure: $(date)"
+        echo "🏃 Workflow: ${{ github.workflow }}"
+        echo "🔧 Run ID: ${{ github.run_id }}"
+        echo ""
+        
+        echo "📹 Vidéos créées:"
+        video_count=0
+        find output/videos -name "*.mp4" -type f 2>/dev/null | while read file; do
+          size=$(du -h "$file" | cut -f1)
           echo "   - $(basename "$file") ($size)"
           ((video_count++))
         done

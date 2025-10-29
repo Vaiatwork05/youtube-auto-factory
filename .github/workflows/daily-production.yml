@@ -131,7 +131,9 @@ jobs:
           find output/audio -name "*.mp3" -type f -exec du -h {} \; | awk '{print "   - " $2 " (" $1 ")"}'
           echo ""
           echo "🖼️ Images:"
-          find output/images -name "*.jpg" -type f | head -5
+          find output/images -name "*.jpg" -type f | head -5 | while read file; do
+            echo "   - $(basename "$file")"
+          done
           echo ""
           echo "💾 Cache activé & optimisation réussie ✅"
 
@@ -144,13 +146,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: '🚨 YouTube Auto Factory - Production Failed',
-              body: `La production vidéo a échoué. Veuillez vérifier les logs du workflow.
-
-              Détails:
-              - Workflow: ${context.workflow}
-              - Run: ${context.runId}
-              - Commit: ${context.sha}
-              - Déclencheur: ${context.eventName}
-
-              Lien vers les logs: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+              body: 'La production vidéo a échoué. Veuillez vérifier les logs du workflow.\n\nDétails:\n- Workflow: ' + context.workflow + '\n- Run: ' + context.runId + '\n- Commit: ' + context.sha + '\n- Déclencheur: ' + context.eventName + '\n\nLien vers les logs: https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId
             })

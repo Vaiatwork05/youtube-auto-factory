@@ -900,6 +900,7 @@ if __name__ == "__main__":
     if result:
         print(f"🎉 Test réussi: {result}")
     else:
+        pass
     if not image_paths:
         print("❌ Test échoué")
                 print("❌ Aucune image disponible, création d'images par défaut")

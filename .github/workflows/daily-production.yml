@@ -7,28 +7,27 @@ name: 🚀 Production - Lancement Quotidien du Moteur
 # DÉCLENCHEURS
 # ===============================================
 on:
-  # 1. Planification Quotidienne (Les 4 heures de publication UTC)
+  # Déclenche le workflow à 06h, 10h, 14h et 18h UTC
   schedule:
-    # Correspond aux SLOT_HOURS_UTC dans config.yaml, ex: 06h00, 10h00, 14h00, 18h00 UTC
     - cron: '0 6,10,14,18 * * *' 
   
-  # 2. Lancement Manuel (pour le test ou la correction)
+  # Lancement Manuel pour le test
   workflow_dispatch:
     inputs:
       force_run:
-        description: 'Forcer l''exécution du premier créneau (Slot 1) pour un test immédiat, ignorant l''heure UTC.'
+        description: 'Forcer l''exécution du Slot 1 (premier créneau) pour un test immédiat.'
         required: true
         default: 'false'
         type: boolean
         
-# Permissions de sécurité minimales
 permissions:
-  contents: read # Lecture seule pour le checkout
+  contents: read 
   
 jobs:
   daily_production_job:
     
-    # Utilisation d'une image Docker pré-packagée avec Python et FFMPEG
+    # ⚠️ Utilisation d'un conteneur avec FFMPEG. Si ce conteneur échoue,
+    # essayez python:3.11-slim-buster et ajoutez 'sudo apt-get install ffmpeg' dans l'étape 2.
     container:
       image: jrottenberg/ffmpeg:4.4-python3.11 
       
@@ -38,13 +37,11 @@ jobs:
     # VARIABLES D'ENVIRONNEMENT GLOBALES
     # ===============================================
     env:
-      # Passe l'input manuel au script Python via l'argument --force-run
       FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }} 
       ENGINE_SCRIPT: 'content_factory/auto_content_engine.py'
       OUTPUT_ROOT: 'output' 
       
-      # 🔑 INJECTION DES SECRETS DE PRODUCTION (Utilisés par ConfigLoader et Uploader)
-      # Assurez-vous que ces secrets sont configurés dans les settings GitHub
+      # 🔑 INJECTION DES SECRETS (Configuration des modules Python)
       UNSPLASH_API_KEY: ${{ secrets.UNSPLASH_API_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
@@ -56,31 +53,31 @@ jobs:
     - name: ⬇️ Checkout du code
       uses: actions/checkout@v4
       with:
-        path: app # Le code est cloné dans le sous-répertoire /app
+        path: app 
     
     # 📦 ÉTAPE 2: Installation des dépendances Python
-    - name: 📦 Préparation de l'environnement (Installation des PIP)
+    - name: 📦 Préparation de l'environnement
       working-directory: ./app 
       run: |
         echo "## Installation des dépendances Python"
         python -m pip install --upgrade pip setuptools
         
-        # Le fichier requirements.txt doit contenir: moviepy, google-api-python-client, PyYAML, requests, Pillow, etc.
+        # Installation des librairies
         pip install -r requirements.txt 
         
     # 🚀 ÉTAPE 3: Exécution du Moteur (Production)
     - name: 🚀 Lancement du Moteur de Contenu
       working-directory: ./app
       run: |
-        echo "## Démarrage du processus de génération et d'upload"
+        echo "## Démarrage du processus de génération et d'upload. (Force Run: ${{ env.FORCE_RUN }})"
         
-        # Le script auto_content_engine.py est exécuté avec l'argument --force-run
+        # Exécution du moteur Python avec l'argument --force-run
         python "${{ env.ENGINE_SCRIPT }}" --force-run ${{ env.FORCE_RUN }}
           
-    # 💾 ÉTAPE 4: Sauvegarde des artefacts (Vidéo finale, Logs, etc.)
+    # 💾 ÉTAPE 4: Sauvegarde des artefacts
     - name: 💾 Sauvegarde des Artefacts de génération
       uses: actions/upload-artifact@v4
-      if: always() # Toujours uploader, même en cas d'échec, pour l'analyse
+      if: always() 
       with:
         name: resultats-${{ github.run_id }}
         path: app/${{ env.OUTPUT_ROOT }} 
@@ -90,10 +87,9 @@ jobs:
     - name: 🔔 Notification de Succès
       if: success()
       run: |
-        echo "🎉 Le workflow de production s'est terminé avec succès ! Vidéo créée et uploadée."
+        echo "🎉 Le workflow de production s'est terminé avec succès !"
         
     - name: 🔔 Notification d'Échec
       if: failure()
       run: |
-        echo "❌ ÉCHEC CRITIQUE: Le workflow de production a échoué. Consulter l'artefact pour les détails."
-        
+        echo "❌ ÉCHEC CRITIQUE: Le workflow de production a échoué."

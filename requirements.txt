@@ -1,4 +1,4 @@
-# Dépendances principales SANS conflits
+# Dependencies principales
 moviepy==1.0.3
 Pillow==10.1.0
 numpy==1.24.3
@@ -13,3 +13,9 @@ pydub==0.25.1
 opencv-python==4.8.1.78
 colorama==0.4.6
 decorator==4.4.2
+
+# Dependances optionnelles
+google-api-python-client==2.108.0
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+python-unsplash==1.1.0

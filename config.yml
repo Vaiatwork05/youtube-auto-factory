@@ -1,0 +1,72 @@
+# config.yaml
+
+# ===============================================
+# PARAMÈTRES GLOBAUX DU WORKFLOW
+# Ces paramètres contrôlent la fréquence et la structure du contenu.
+# ===============================================
+WORKFLOW:
+  # Nombre de vidéos à tenter de produire et d'uploader par exécution.
+  DAILY_SLOTS: 4
+  # Langue par défaut pour la génération de contenu
+  DEFAULT_LANGUAGE: "fr"
+  # Le canal YouTube cible (Utilisé pour les métadonnées)
+  TARGET_CHANNEL_ID: "UC_VOTRE_ID_DE_CHAINE_ICI"
+
+# ===============================================
+# CHEMINS DES FICHIERS ET STRUCTURE DES DOSSIERS
+# ===============================================
+PATHS:
+  # Dossier racine pour tous les outputs générés (vidéos, audio, images)
+  OUTPUT_ROOT: "output"
+  # Sous-dossiers spécifiques
+  VIDEO_DIR: "videos"
+  AUDIO_DIR: "audio"
+  IMAGE_DIR: "images"
+
+# ===============================================
+# CONFIGURATION DE LA CRÉATION VIDÉO (moviepy)
+# Ces valeurs affectent la qualité et la performance.
+# ===============================================
+VIDEO_CREATOR:
+  # Résolution de la vidéo (720p)
+  RESOLUTION_W: 1280
+  RESOLUTION_H: 720
+  # Taux de rafraîchissement (Frames Per Second)
+  FPS: 24
+  # Codec vidéo standard pour YouTube (H.264)
+  VIDEO_CODEC: "libx264"
+  # Codec audio
+  AUDIO_CODEC: "aac"
+  # Débit binaire (Bitrate) pour la qualité vidéo (5000k = 5 Mbps)
+  BITRATE: "5000k"
+  # Nombre de threads pour l'encodage
+  THREADS: 4
+  # Durée maximale d'une image de secours silencieuse (en secondes)
+  FALLBACK_DURATION_S: 10 # Réduit à 10s pour le secours
+
+# ===============================================
+# CONFIGURATION DE L'UPLOAD YOUTUBE
+# Les valeurs suivantes seront lues à partir des secrets GitHub
+# ===============================================
+YOUTUBE_UPLOADER:
+  # Catégorie par défaut (28 = Science & Technologie, 27 = Éducation)
+  DEFAULT_CATEGORY_ID: "28"
+  # Statut de confidentialité après l'upload
+  PRIVACY_STATUS: "unlisted" # 'public' ou 'unlisted'
+  # Indicateur 'Conçu pour les enfants' (False par défaut)
+  MADE_FOR_KIDS: false
+  # Les valeurs suivantes sont des placeholders remplacés par config_loader.py
+  CLIENT_ID: ${YOUTUBE_CLIENT_ID}
+  CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET}
+  REFRESH_TOKEN: ${YOUTUBE_REFRESH_TOKEN}
+
+# ===============================================
+# GESTION AUDIO (Text-to-Speech)
+# ===============================================
+AUDIO_GENERATOR:
+  # Voix TTS par défaut
+  DEFAULT_VOICE: "fr-FR-Wavenet-A"
+  # Vitesse de lecture (1.0 = normal)
+  SPEAKING_RATE: 1.0
+  # Volume (0.0 = normal)
+  VOLUME_GAIN: 0.0

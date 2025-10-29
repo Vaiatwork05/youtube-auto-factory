@@ -264,7 +264,8 @@ if __name__ == "__main__":
     if result:
         print("✅ Test réussi")
     else:
-        print("❌ Test échoué")        self._ensure_directory(image_dir)
+        print("❌ Test échoué")        
+        self_ensure_directory(image_dir)
         
         # CORRECTION : Séparer le for et le print
         for i in range(num_images):

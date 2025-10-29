@@ -77,7 +77,7 @@ except Exception as e:
       # ÉTAPE 7: Désactivation YouTube Uploader si nécessaire
       # CORRECTION APPLIQUÉE ICI : Appel direct du script Python
       - name: 🚫 Désactivation YouTube Uploader via script
-        run: python3 scripts/disable_youtube_uploader.py
+        run: | python3 scripts/disable_youtube_uploader.py
 
       # ÉTAPE 8: Configuration de l'environnement
       - name: 🔑 Configuration des variables

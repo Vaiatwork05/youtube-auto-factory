@@ -2,10 +2,10 @@
 
 import random
 import sys
-import re # Ajout pour le nettoyage des mots-clés
+import re 
 from datetime import datetime
 from typing import Dict, List, Any, Optional
-from content_factory.config_loader import ConfigLoader # Import du chargeur de config
+from content_factory.config_loader import ConfigLoader 
 
 # --- DONNÉES STATIQUES DU CONTENU FILTRÉ et ÉLARGI ---
 # Ces données définissent le contenu thématique
@@ -67,7 +67,8 @@ TITLE_TEMPLATES = {
         'science': ["approche éducative et pédagogique", "angle découverte et innovation", "perspective historique et évolution", "focus applications pratiques"],
         'technologie': ["impact sur la société moderne", "innovations récentes et tendances", "comparaison technologies anciennes/nouvelles", "perspective futuriste"],
         'environnement': ["solutions concrètes et actions", "impact sur la biodiversité", "innovations durables", "implication citoyenne"],
-        'espace': ["défis techniques et ingénierie", "découvertes astronomiques récentes", "perspective scientifique et hypothèses", "focus sur l'exploration humaine'],
+        # CORRECTION APPLIQUÉE ICI (ligne 70 de votre code initial)
+        'espace': ["défis techniques et ingénierie", "découvertes astronomiques récentes", "perspective scientifique et hypothèses", "focus sur l'exploration humaine"],
         'sante_bienetre': ["bases scientifiques et études", "conseils pratiques pour le quotidien", "mécanismes biologiques et chimiques", "perspective d'amélioration de la qualité de vie"],
     }
 }
@@ -154,7 +155,6 @@ class ContentGenerator:
         
     def generate_script(self, base_topic: str, category: str, angle: str, slot_number: int) -> str:
         # La logique de génération du script reste identique pour maintenir l'auto-suffisance
-        # ... (code identique à la version fournie, non répété ici pour la concision) ...
 
         introductions = [
             f"Aujourd'hui, explorons ensemble **{base_topic.lower()}**.",
@@ -282,7 +282,6 @@ if __name__ == "__main__":
             print(f"Créneau {content['slot_number'] + 1} | Catégorie: {content['category'].upper()}")
             print(f"Titre: {content['title']}")
             print(f"Mots-clés: {content['keywords']}")
-            # print(f"Script (début): {content['script'][:150].replace('\n', ' ')}...")
             
             # Vérification critique pour le ImageManager
             if not content.get('keywords') or len(content['keywords']) < 3:

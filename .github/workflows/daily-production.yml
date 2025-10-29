@@ -7,17 +7,16 @@ name: 🚀 Production - Lancement Quotidien du Moteur
 # DÉCLENCHEURS
 # ===============================================
 on:
-  # 1. Planification Quotidienne (ex: minuit UTC)
+  # 1. Planification Quotidienne (Les 4 heures de publication UTC)
   schedule:
-    # Lance le workflow tous les jours à 00:00 UTC
-    # Ajustez l'heure selon votre fuseau horaire et votre premier créneau de publication
-    - cron: '0 0 * * *' 
+    # Correspond aux SLOT_HOURS_UTC dans config.yaml, ex: 06h00, 10h00, 14h00, 18h00 UTC
+    - cron: '0 6,10,14,18 * * *' 
   
-  # 2. Lancement Manuel avec mode Debug
+  # 2. Lancement Manuel (pour le test ou la correction)
   workflow_dispatch:
     inputs:
-      debug_mode:
-        description: 'Activer le mode Debug (true/false) pour le script Python.'
+      force_run:
+        description: 'Forcer l''exécution du premier créneau (Slot 1) pour un test immédiat, ignorant l''heure UTC.'
         required: true
         default: 'false'
         type: boolean
@@ -28,9 +27,10 @@ permissions:
   
 jobs:
   daily_production_job:
-    # Utilisation d'un conteneur Docker pour garantir la cohérence de l'environnement
+    
+    # Utilisation d'une image Docker pré-packagée avec Python et FFMPEG
     container:
-      image: python:3.11-slim-buster # Image Python légère et stable
+      image: jrottenberg/ffmpeg:4.4-python3.11 
       
     runs-on: ubuntu-latest
     
@@ -38,14 +38,14 @@ jobs:
     # VARIABLES D'ENVIRONNEMENT GLOBALES
     # ===============================================
     env:
-      # DEBUG_MODE lu depuis l'input manuel ou 'false' par défaut pour la planification
-      DEBUG_MODE: ${{ github.event.inputs.debug_mode || 'false' }} 
+      # Passe l'input manuel au script Python via l'argument --force-run
+      FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }} 
       ENGINE_SCRIPT: 'content_factory/auto_content_engine.py'
-      # Pas besoin de DISABLE_SCRIPT ici si l'upload est toujours requis en PROD
-      OUTPUT_ROOT: 'output' # Correspond à la configuration dans config.yaml
+      OUTPUT_ROOT: 'output' 
       
-      # 🔑 INJECTION DES SECRETS DE PRODUCTION
-      # Ces variables sont lues par le config_loader.py via le placeholder ${VARIABLE_NAME}
+      # 🔑 INJECTION DES SECRETS DE PRODUCTION (Utilisés par ConfigLoader et Uploader)
+      # Assurez-vous que ces secrets sont configurés dans les settings GitHub
+      UNSPLASH_API_KEY: ${{ secrets.UNSPLASH_API_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
@@ -56,52 +56,44 @@ jobs:
     - name: ⬇️ Checkout du code
       uses: actions/checkout@v4
       with:
-        path: app # Le code sera cloné dans /app dans le conteneur
+        path: app # Le code est cloné dans le sous-répertoire /app
     
-    # 📦 ÉTAPE 2: Installation des dépendances
-    - name: 📦 Préparation de l'environnement
-      working-directory: ./app # Répertoire de travail
+    # 📦 ÉTAPE 2: Installation des dépendances Python
+    - name: 📦 Préparation de l'environnement (Installation des PIP)
+      working-directory: ./app 
       run: |
         echo "## Installation des dépendances Python"
         python -m pip install --upgrade pip setuptools
         
-        # Installer les dépendances du projet
-        # Nécessite: moviepy, google-api-python-client, google-auth, PyYAML, etc.
-        pip install -r requirements.txt
-        
-        # Vérification critique de PyYAML pour le ConfigLoader
-        pip show pyyaml
+        # Le fichier requirements.txt doit contenir: moviepy, google-api-python-client, PyYAML, requests, Pillow, etc.
+        pip install -r requirements.txt 
         
     # 🚀 ÉTAPE 3: Exécution du Moteur (Production)
     - name: 🚀 Lancement du Moteur de Contenu
       working-directory: ./app
       run: |
         echo "## Démarrage du processus de génération et d'upload"
-        echo "Mode Debug: ${{ env.DEBUG_MODE }}"
         
-        # Lancement de l'Engine. Le code de sortie du script (0 ou 1) déterminera
-        # le succès ou l'échec de cette étape.
-        # On passe le mode DEBUG en variable d'environnement au script python
-        DEBUG_MODE=${{ env.DEBUG_MODE }} python "${{ env.ENGINE_SCRIPT }}"
+        # Le script auto_content_engine.py est exécuté avec l'argument --force-run
+        python "${{ env.ENGINE_SCRIPT }}" --force-run ${{ env.FORCE_RUN }}
           
-    # 💾 ÉTAPE 4: Sauvegarde des artefacts (Vidéo finale, Audio, Images)
-    # L'artefact est uploadé depuis le chemin de travail du conteneur (/app/output)
+    # 💾 ÉTAPE 4: Sauvegarde des artefacts (Vidéo finale, Logs, etc.)
     - name: 💾 Sauvegarde des Artefacts de génération
       uses: actions/upload-artifact@v4
-      if: always() # Toujours uploader pour analyse en cas d'échec
+      if: always() # Toujours uploader, même en cas d'échec, pour l'analyse
       with:
         name: resultats-${{ github.run_id }}
         path: app/${{ env.OUTPUT_ROOT }} 
         retention-days: 7 
         
-    # 🔔 ÉTAPE 5: Notifications (avec statut clair)
+    # 🔔 ÉTAPE 5: Notifications
     - name: 🔔 Notification de Succès
       if: success()
       run: |
-        echo "🎉 Le workflow de production s'est terminé avec succès !"
+        echo "🎉 Le workflow de production s'est terminé avec succès ! Vidéo créée et uploadée."
         
     - name: 🔔 Notification d'Échec
       if: failure()
       run: |
         echo "❌ ÉCHEC CRITIQUE: Le workflow de production a échoué. Consulter l'artefact pour les détails."
-
+        

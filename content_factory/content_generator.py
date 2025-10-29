@@ -2,13 +2,13 @@
 
 import random
 import sys
-from datetime import datetime, timedelta
+import re # Ajout pour le nettoyage des mots-clés
+from datetime import datetime
 from typing import Dict, List, Any, Optional
 from content_factory.config_loader import ConfigLoader # Import du chargeur de config
 
 # --- DONNÉES STATIQUES DU CONTENU FILTRÉ et ÉLARGI ---
-# Ces données restent en dur car elles définissent le contenu thématique
-
+# Ces données définissent le contenu thématique
 BASE_TOPICS = {
     'science': [
         "L'ADN et la Génétique : Les Bases", "Les Mystères des Trous Noirs et des Galaxies", 
@@ -67,7 +67,7 @@ TITLE_TEMPLATES = {
         'science': ["approche éducative et pédagogique", "angle découverte et innovation", "perspective historique et évolution", "focus applications pratiques"],
         'technologie': ["impact sur la société moderne", "innovations récentes et tendances", "comparaison technologies anciennes/nouvelles", "perspective futuriste"],
         'environnement': ["solutions concrètes et actions", "impact sur la biodiversité", "innovations durables", "implication citoyenne"],
-        'espace': ["défis techniques et ingénierie", "découvertes astronomiques récentes", "perspective scientifique et hypothèses", "focus sur l'exploration humaine"],
+        'espace': ["défis techniques et ingénierie", "découvertes astronomiques récentes", "perspective scientifique et hypothèses", "focus sur l'exploration humaine'],
         'sante_bienetre': ["bases scientifiques et études", "conseils pratiques pour le quotidien", "mécanismes biologiques et chimiques", "perspective d'amélioration de la qualité de vie"],
     }
 }
@@ -76,21 +76,24 @@ TITLE_TEMPLATES = {
 class ContentGenerator:
     def __init__(self, base_topics: Dict = BASE_TOPICS):
         self.base_topics = base_topics
-        self.config = ConfigLoader().get_config() # Chargement de la config
+        self.config = ConfigLoader().get_config()
         self.daily_variations = self._generate_daily_variations()
+        self.global_tags: List[str] = self.config['YOUTUBE_UPLOADER'].get('GLOBAL_TAGS', [])
     
     @staticmethod
     def get_daily_seed() -> int:
         return int(datetime.now().strftime("%Y%m%d"))
         
     def _generate_daily_variations(self) -> Dict[int, Dict[str, Any]]:
+        """Génère un pool de sujets pour la journée, basé sur la seed quotidienne."""
         seed = self.get_daily_seed()
         random.seed(seed)
         variations = {}
         categories = list(self.base_topics.keys())
         
-        # Le nombre de créneaux est déterminé par la configuration
-        num_slots = self.config['WORKFLOW']['DAILY_SLOTS']
+        num_slots = self.config['WORKFLOW'].get('DAILY_SLOTS', 4)
+        
+        # Choisir les catégories, puis un sujet unique par catégorie
         categories_for_day = random.sample(categories, min(num_slots, len(categories)))
         
         for i, category in enumerate(categories_for_day):
@@ -102,20 +105,29 @@ class ContentGenerator:
                 'angle': random.choice(TITLE_TEMPLATES['angles'].get(category, ["angle informatif"])),
                 'daily_seed': seed
             }
+        
+        # Si moins de sujets que de slots, on répète les sujets aléatoirement
+        if len(variations) < num_slots:
+            original_variations = list(variations.values())
+            for i in range(len(variations), num_slots):
+                variations[i] = random.choice(original_variations)
+                
         return variations
     
     def _generate_title_variations(self, base_topic: str, category: str) -> List[str]:
+        """Crée plusieurs variations de titres pour augmenter le CTR."""
         prefixes = TITLE_TEMPLATES['prefixes'].get(category, [""])
         suffixes = TITLE_TEMPLATES['suffixes'].get(category, [""])
         variations = []
-        for _ in range(4):
+        # Générer 4 variations
+        for _ in range(4): 
             prefix = random.choice(prefixes) if prefixes else ""
             suffix = random.choice(suffixes) if suffixes else ""
             variations.append(f"{prefix}{base_topic}{suffix}".strip())
         return variations
     
     def _get_script_detail(self, category: str, detail_type: str) -> str:
-        # Détails du script (restent en dur car ils sont spécifiques à la logique de génération)
+        # Détails du script (basés sur le code fourni)
         DETAILS_MAP = {
             'science': {
                 'details': "Les dernières études confirment l'importance de ces découvertes.",
@@ -141,6 +153,9 @@ class ContentGenerator:
         return DETAILS_MAP.get(category, {}).get(detail_type, "Des recherches continuent de progresser à un rythme accéléré.")
         
     def generate_script(self, base_topic: str, category: str, angle: str, slot_number: int) -> str:
+        # La logique de génération du script reste identique pour maintenir l'auto-suffisance
+        # ... (code identique à la version fournie, non répété ici pour la concision) ...
+
         introductions = [
             f"Aujourd'hui, explorons ensemble **{base_topic.lower()}**.",
             f"Plongeons dans l'univers fascinant de **{base_topic.lower()}**.",
@@ -171,13 +186,44 @@ class ContentGenerator:
         script = f"{introduction}\n\n{main_content}\n\n{conclusion}"
         
         return script
+    
+    def _generate_keywords(self, base_topic: str, category: str) -> List[str]:
+        """Génère des mots-clés pour l'ImageManager et le YouTubeUploader."""
+        
+        # Nettoyer le sujet de base (enlever les articles, les verbes d'état, les symboles)
+        cleaned_topic = re.sub(r'[\'":\s]+', ' ', base_topic).strip()
+        cleaned_topic = re.sub(r'\b(l\'|la|le|les|des|du|un|une|et|à|de|en|aux|avec|sur|ou|par|dans|qui|que)\b', '', cleaned_topic, flags=re.IGNORECASE).strip()
+        
+        # Mots-clés basés sur le sujet et la catégorie
+        topic_tags = [tag.strip() for tag in cleaned_topic.split() if len(tag) > 3]
+        
+        # Mots-clés spécifiques à la catégorie
+        category_tags = {
+            'science': ['science', 'recherche', 'découverte', 'innovation'],
+            'technologie': ['tech', 'futur', 'numérique', 'ia', 'robotique'],
+            'environnement': ['nature', 'écologie', 'durable', 'planète', 'climat'],
+            'espace': ['cosmos', 'astronomie', 'univers', 'exploration', 'nasa'],
+            'sante_bienetre': ['santé', 'bienêtre', 'corps', 'cerveau', 'science'],
+        }.get(category, [])
+        
+        # Mots-clés longs (pour le SEO)
+        long_tags = [base_topic, category]
+        
+        # Suppression des doublons et application des tags globaux
+        all_tags = list(set(topic_tags + category_tags + long_tags + self.global_tags))
+        
+        # Limiter à 15 tags pour Youtube
+        return all_tags[:15]
 
     def generate_content(self, slot_number: int) -> Dict[str, Any]:
+        """Produit le dictionnaire de contenu complet pour un créneau donné."""
         
         num_variations = len(self.daily_variations)
         if num_variations == 0:
+            # Devrait jamais arriver si BASE_TOPICS n'est pas vide
             raise RuntimeError("Aucun sujet n'a pu être généré à partir des thèmes de base.")
 
+        # Utiliser l'index du slot pour sélectionner le sujet du jour
         variation_key = slot_number % num_variations
         variation = self.daily_variations[variation_key]
         
@@ -190,9 +236,16 @@ class ContentGenerator:
             slot_number
         )
         
+        keywords = self._generate_keywords(variation['base_topic'], variation['category'])
+        
+        # La description YouTube est basée sur le script + un appel à l'action
+        description = f"{script.replace('**', '')}\n\n---\n\nExplorez la science, la technologie, l'environnement et l'espace avec nous ! Abonnez-vous pour plus de découvertes fascinantes."
+        
         return {
             'title': title,
             'script': script,
+            'description': description, # NOUVEAU
+            'keywords': keywords, # NOUVEAU
             'category': variation['category'],
             'slot_number': slot_number,
             'daily_seed': variation['daily_seed']
@@ -203,7 +256,8 @@ def generate_daily_contents() -> List[Dict[str, Any]]:
     """Génère le nombre de contenus définis dans la configuration."""
     try:
         config = ConfigLoader().get_config()
-        num_slots = config['WORKFLOW']['DAILY_SLOTS']
+        # Lire DAILY_SLOTS avec une valeur par défaut de 4 si la clé est manquante
+        num_slots = config['WORKFLOW'].get('DAILY_SLOTS', 4) 
         
         generator = ContentGenerator()
         daily_contents = [generator.generate_content(slot) for slot in range(num_slots)]
@@ -221,12 +275,20 @@ if __name__ == "__main__":
         if not contents:
             print("❌ Test échoué: Aucune donnée générée.")
             sys.exit(1)
+            
         print(f"✅ {len(contents)} Contenus générés pour la journée.")
         for content in contents:
             print("-" * 50)
             print(f"Créneau {content['slot_number'] + 1} | Catégorie: {content['category'].upper()}")
             print(f"Titre: {content['title']}")
-            print(f"Script (début): {content['script'][:150].replace('\n', ' ')}...")
+            print(f"Mots-clés: {content['keywords']}")
+            # print(f"Script (début): {content['script'][:150].replace('\n', ' ')}...")
+            
+            # Vérification critique pour le ImageManager
+            if not content.get('keywords') or len(content['keywords']) < 3:
+                 print("⚠️ Avertissement: Moins de 3 mots-clés générés.")
+                 sys.exit(1)
+                 
     except Exception as e:
         print(f"❌ Test échoué avec erreur: {e}")
         sys.exit(1)

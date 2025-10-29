@@ -1,64 +1,26 @@
-name: 🚀 ULTIME - Génération Vidéo Automatisée
+- name: 🔧 Installation des dépendances Python
+  run: |
+    python -m pip install --upgrade pip
+    if [ -f requirements.txt ]; then
+      pip install -r requirements.txt
+    else
+      echo "📦 Installation des dépendances de base..."
+      pip install pillow numpy requests
+    fi
 
-on:
-  workflow_dispatch:  # Déclenchement manuel
-  schedule:
-    - cron: "0 6 * * *"   # 8h00 CEST (06:00 UTC)
-    - cron: "0 10 * * *"  # 12h00 CEST (10:00 UTC)
-    - cron: "0 14 * * *"  # 16h00 CEST (14:00 UTC)
-    - cron: "0 18 * * *"  # 20h00 CEST (18:00 UTC)
+- name: 📁 Création de l'arborescence
+  run: |
+    mkdir -p output/videos output/audio output/images output/logs content_factory
+    echo "✅ Structure de dossiers créée"
 
-jobs:
-  generate-video:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      # ÉTAPE 1: Récupération du code
-      - name: 📥 Checkout du repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      # ÉTAPE 2: Configuration Python
-      - name: 🐍 Configuration de Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
-          cache: 'pip'
-
-      # ÉTAPE 3: Dépendances système
-      - name: 📦 Installation des dépendances système
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg espeak
-
-      # ÉTAPE 4: Dépendances Python
-      - name: 🔧 Installation des dépendances Python
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            echo "⚠️ Installation des dépendances de base..."
-            pip install pillow numpy requests
-          fi
-
-      # ÉTAPE 5: Structure de dossiers
-      - name: 📁 Création de l'arborescence
-        run: |
-          mkdir -p output/videos output/audio output/images output/logs content_factory
-          echo "✅ Structure de dossiers créée"
-
-      # ÉTAPE 6: Vérification ImageManager
-      - name: 🖼️ Vérification ImageManager
-        run: |
-          echo "🔍 Vérification du module ImageManager..."
-          
-          # Créer le fichier s'il n'existe pas
-          if [ ! -f "content_factory/image_manager.py" ]; then
-            echo "📝 Création du fichier image_manager.py..."
-            cat > content_factory/image_manager.py << 'PYEOF'
+- name: 🖼️ Vérification ImageManager
+  run: |
+    echo "🔍 Vérification du module ImageManager..."
+    
+    # Créer le fichier s'il n'existe pas
+    if [ ! -f "content_factory/image_manager.py" ]; then
+      echo "📝 Création du fichier image_manager.py..."
+      cat > content_factory/image_manager.py << 'PYEOF'
 class ImageManager:
     """
     Gestionnaire d'images pour la génération de contenu vidéo
@@ -111,171 +73,7 @@ class ImageManager:
         print(f"✅ {len(images)} images générées")
         return images
 PYEOF
-            echo "✅ Fichier image_manager.py créé"
-          else
-            echo "✅ Fichier image_manager.py existe déjà"
-          fi
-
-      # ÉTAPE 7: Désactivation YouTube Upload
-      - name: 🚫 Désactivation YouTube
-        run: |
-          echo "🔧 Désactivation de l'upload YouTube..."
-          
-          if [ ! -f "content_factory/auto_content_engine.py" ]; then
-            echo "⚠️ Fichier auto_content_engine.py non trouvé, création d'un script de base..."
-            cat > content_factory/auto_content_engine.py << 'PYEOF'
-#!/usr/bin/env python3
-"""
-Script principal de génération de contenu vidéo
-"""
-
-import os
-import sys
-
-def main():
-    print("🚀 DÉMARRAGE DU GÉNÉRATEUR DE CONTENU")
-    print("=" * 50)
-    
-    # Vérifier que ImageManager est disponible
-    try:
-        from content_factory.image_manager import ImageManager
-        print("✅ ImageManager importé avec succès")
-    except ImportError as e:
-        print(f"❌ Erreur import ImageManager: {e}")
-        return 1
-    
-    # Générer du contenu de démonstration
-    try:
-        # Créer une instance d'ImageManager
-        image_manager = ImageManager()
-        
-        # Générer des images
-        content_data = {
-            "titre": "Vidéo Démonstration",
-            "description": "Contenu généré automatiquement"
-        }
-        
-        images = image_manager.get_images_for_content(content_data, num_images=3)
-        
-        print(f"🎉 GÉNÉRATION TERMINÉE AVEC SUCCÈS")
-        print(f"📁 Images générées: {len(images)}")
-        
-        # Créer un fichier de rapport
-        os.makedirs("output/logs", exist_ok=True)
-        with open("output/logs/generation_report.txt", "w") as f:
-            f.write("RAPPORT DE GÉNÉRATION\n")
-            f.write("=====================\n")
-            f.write(f"Nombre d'images: {len(images)}\n")
-            for i, img_path in enumerate(images):
-                f.write(f"Image {i+1}: {img_path}\n")
-        
-        print("📊 Rapport sauvegardé: output/logs/generation_report.txt")
-        return 0
-        
-    except Exception as e:
-        print(f"❌ Erreur lors de la génération: {e}")
-        return 1
-
-if __name__ == "__main__":
-    sys.exit(main())
-PYEOF
-            echo "✅ Script auto_content_engine.py créé"
-          else
-            echo "✅ Fichier auto_content_engine.py existe déjà, désactivation YouTube..."
-            python3 << 'INLINEEOF'
-import re
-
-try:
-    with open('content_factory/auto_content_engine.py', 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    # Désactiver les références YouTube
-    new_content = re.sub(r'from youtube_uploader import YouTubeUploader', 
-                        '# from youtube_uploader import YouTubeUploader  # Désactivé', 
-                        content)
-    
-    new_content = re.sub(r'YouTubeUploader\(\)', 
-                        '# YouTubeUploader()  # Désactivé', 
-                        new_content)
-    
-    with open('content_factory/auto_content_engine.py', 'w', encoding='utf-8') as f:
-        f.write(new_content)
-    
-    print('✅ Upload YouTube désactivé')
-    
-except Exception as e:
-    print(f'❌ Erreur: {e}')
-INLINEEOF
-          fi
-
-      # ÉTAPE 8: Test des composants
-      - name: 🧪 Test des composants
-        run: |
-          echo "🧪 Test des composants..."
-          python3 -c "
-import sys
-import os
-
-print('🔍 Test des composants système...')
-
-# Test ImageManager
-try:
-    from content_factory.image_manager import ImageManager
-    manager = ImageManager()
-    print('✅ ImageManager - OK')
-    
-    # Test de génération d'images
-    images = manager.get_images_for_content({'test': 'data'}, 2)
-    print(f'✅ Génération images - {len(images)} créées')
-    
-except Exception as e:
-    print(f'❌ ImageManager - Erreur: {e}')
-    sys.exit(1)
-
-print('🎉 Tous les tests passés avec succès!')
-"
-
-      # ÉTAPE 9: Génération vidéo (CORRIGÉE)
-      - name: 🎬 Génération de la vidéo
-        run: |
-          echo "🎬 LANCEMENT DE LA GÉNÉRATION VIDÉO..."
-          echo "========================================"
-          
-          # Vérifier si le script existe
-          if [ -f "content_factory/auto_content_engine.py" ]; then
-            echo "📜 Exécution du script principal..."
-            cd content_factory
-            python auto_content_engine.py
-            cd ..
-          else
-            echo "❌ Script principal non trouvé"
-            exit 1
-          fi
-
-      # ÉTAPE 10: Sauvegarde des résultats
-      - name: 💾 Sauvegarde des artefacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: contenus-generees
-          path: |
-            output/
-            content_factory/
-          retention-days: 1
-          if-no-files-found: warn
-
-      # ÉTAPE 11: Rapport final
-      - name: 📊 Rapport final
-        if: always()
-        run: |
-          echo " "
-          echo "📊 RAPPORT FINAL"
-          echo "================"
-          echo "📹 Vidéos: $(find output/videos -name '*.mp4' -o -name '*.avi' 2>/dev/null | wc -l) fichiers"
-          echo "🔊 Audios: $(find output/audio -name '*.mp3' -o -name '*.wav' 2>/dev/null | wc -l) fichiers"
-          echo "🖼️ Images: $(find output/images -name '*.jpg' -o -name '*.png' -o -name '*.txt' 2>/dev/null | wc -l) fichiers"
-          echo "📋 Logs: $(find output/logs -name '*.txt' -o -name '*.log' 2>/dev/null | wc -l) fichiers"
-          echo " "
-          echo "📁 Structure générée:"
-          find output/ -type f 2>/dev/null | head -10 || echo "Aucun fichier trouvé"
-          echo " "
-          echo "🎉 PROCESSUS TERMINÉ !"
+      echo "✅ Fichier image_manager.py créé"
+    else
+      echo "✅ Fichier image_manager.py existe déjà"
+    fi

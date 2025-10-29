@@ -1,11 +1,17 @@
 # .github/workflows/daily-production.yml
+# Workflow final optimisé pour la production quotidienne.
 
 name: 🚀 Production - Lancement Quotidien du Moteur
 
-# ... (Déclencheurs et Permissions inchangés)
+# ===============================================
+# DÉCLENCHEURS
+# ===============================================
 on:
+  # Déclenche le workflow à 06h, 10h, 14h et 18h UTC
   schedule:
     - cron: '0 6,10,14,18 * * *' 
+  
+  # Lancement Manuel pour le test
   workflow_dispatch:
     inputs:
       force_run:
@@ -20,18 +26,20 @@ permissions:
 jobs:
   
   # ===============================================
-  # JOB 1: Exécution du Moteur (MAINTENANT SANS CONTENEUR DOCKER)
+  # JOB 1: Exécution du Moteur (SANS Conteneur Docker)
   # ===============================================
   engine_run:
     runs-on: ubuntu-latest
     
-    # L'image Docker "container:" a été supprimée pour éviter l'erreur ContainerId
+    # NOTE: Le bloc 'container:' a été retiré pour éviter l'erreur 'ContainerId'. FFMPEG est installé manuellement dans l'Étape 2.
     
-    # Variables d'environnement pour ce Job (inchangées)
+    # VARIABLES D'ENVIRONNEMENT GLOBALES
     env:
       FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }} 
       ENGINE_SCRIPT: 'content_factory/auto_content_engine.py'
       OUTPUT_ROOT: 'output' 
+      
+      # 🔑 INJECTION DES SECRETS
       UNSPLASH_API_KEY: ${{ secrets.UNSPLASH_API_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
@@ -39,13 +47,13 @@ jobs:
       
     steps:
       
-      # ⬇️ ÉTAPE 1: Checkout
+      # ⬇️ ÉTAPE 1: Checkout du code
       - name: ⬇️ Checkout du code
         uses: actions/checkout@v4
         with:
           path: app 
       
-      # 📦 ÉTAPE 2: Préparation de l'environnement (AJOUT DE L'INSTALLATION FFMPEG)
+      # 📦 ÉTAPE 2: Préparation, Installation de FFMPEG et Dépendances Python
       - name: 📦 Préparation de l'environnement et Installation de FFMPEG
         working-directory: ./app 
         run: |
@@ -53,44 +61,46 @@ jobs:
           echo "## 📦 Démarrage de la Préparation de l'Environnement"
           echo "==========================================="
           
-          # --- INSTALLATION CRITIQUE DE FFMPEG SUR L'HÔTE ---
-          echo "-> Installation du paquet FFMPEG sur Ubuntu..."
+          # --- INSTALLATION DE FFMPEG SUR L'HÔTE UBUNTU ---
+          echo "-> Installation du paquet FFMPEG..."
           sudo apt-get update
           sudo apt-get install -y ffmpeg
           
-          # Mise à jour et vérification de PIP
+          # Mise à jour et installation des dépendances Python
           echo "-> Mise à jour de pip et installation des dépendances Python..."
           python -m pip install --upgrade pip setuptools
           pip install -r requirements.txt 
           
-          # Log de vérification
-          echo "-> Vérification de l'outil FFMPEG installé..."
-          ffmpeg -version | head -n 1
-          
           echo "## ✅ Préparation de l'environnement terminée."
           
-      # 🚀 ÉTAPE 3: Exécution du Moteur
+      # 🚀 ÉTAPE 3: Exécution du Moteur (avec Correction d'Import)
       - name: 🚀 Lancement du Moteur de Contenu
         working-directory: ./app
         run: |
           echo "========================================================================================================="
           echo "## 🚀 Démarrage de l'Exécution du Moteur"
           echo "## Script: ${{ env.ENGINE_SCRIPT }}"
+          echo "## Argument --force-run: ${{ env.FORCE_RUN }}"
           echo "========================================================================================================="
           
-          # Exécution du moteur Python avec l'argument --force-run
+          # --- CORRECTION DE L'IMPORTERROR ---
+          # Ajoute le répertoire de travail actuel (./app) au PYTHONPATH pour les imports relatifs.
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          
+          # Exécution du moteur Python
+          echo "-> Commande exécutée: python '${{ env.ENGINE_SCRIPT }}' --force-run ${{ env.FORCE_RUN }}"
           python "${{ env.ENGINE_SCRIPT }}" --force-run ${{ env.FORCE_RUN }}
           
           echo "## ✅ Exécution du script terminée."
           
-      # 💾 ÉTAPE 4 (a): Log et vérification des artefacts
+      # 💾 ÉTAPE 4 (a): Log et vérification des artefacts (étape RUN séparée)
       - name: 💾 Vérification des Artefacts avant Upload
         if: always() 
         run: |
-          # ... (Logs de vérification)
+          echo "## 💾 Vérification du dossier des artefacts: app/${{ env.OUTPUT_ROOT }}"
           ls -R app/${{ env.OUTPUT_ROOT }} || echo "⚠️ Le dossier de sortie est vide ou n'existe pas."
 
-      # 💾 ÉTAPE 4 (b): Sauvegarde des artefacts (Upload effectif)
+      # 💾 ÉTAPE 4 (b): Sauvegarde des artefacts (étape USES séparée)
       - name: ⬆️ Upload des Artefacts de génération
         uses: actions/upload-artifact@v4
         if: always() 
@@ -100,7 +110,7 @@ jobs:
           retention-days: 7 
           
   # ===============================================
-  # JOB 2: Notifications et Logs de Fin (inchangé)
+  # JOB 2: Notifications et Logs de Fin (SANS conteneur, s'exécute toujours)
   # ===============================================
   notification_job:
     runs-on: ubuntu-latest

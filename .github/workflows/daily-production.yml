@@ -56,24 +56,50 @@ jobs:
         path: app 
     
     # 📦 ÉTAPE 2: Installation des dépendances Python
-    - name: 📦 Préparation de l'environnement
+    - name: 📦 Préparation de l'environnement et Vérification
       working-directory: ./app 
       run: |
-        echo "## Installation des dépendances Python"
+        echo "==========================================="
+        echo "## 📦 Démarrage de la Préparation de l'Environnement"
+        echo "## Répertoire de travail actuel: $(pwd)"
+        echo "==========================================="
+        
+        # Mise à jour et vérification de PIP
+        echo "-> Mise à jour de pip et setuptools..."
         python -m pip install --upgrade pip setuptools
+        python -m pip --version
         
         # Installation des librairies
+        echo "-> Installation des dépendances depuis requirements.txt..."
         pip install -r requirements.txt 
+        
+        # Log de vérification pour s'assurer que FFMPEG est disponible
+        echo "-> Vérification de l'outil FFMPEG (via le conteneur)..."
+        ffmpeg -version | head -n 1
+        
+        echo "## ✅ Préparation de l'environnement terminée."
         
     # 🚀 ÉTAPE 3: Exécution du Moteur (Production)
     - name: 🚀 Lancement du Moteur de Contenu
       working-directory: ./app
       run: |
-        echo "## Démarrage du processus de génération et d'upload. (Force Run: ${{ env.FORCE_RUN }})"
+        echo "========================================================================================================="
+        echo "## 🚀 Démarrage de l'Exécution du Moteur"
+        echo "## Script: ${{ env.ENGINE_SCRIPT }}"
+        echo "## Argument --force-run: ${{ env.FORCE_RUN }}"
+        echo "## Heure de lancement UTC: $(date -u)"
+        echo "========================================================================================================="
+        
+        # Vérification des variables d'environnement (pour confirmer qu'elles sont chargées)
+        echo "-> Vérification des variables critiques: ENGINE_SCRIPT=${{ env.ENGINE_SCRIPT }}"
         
         # Exécution du moteur Python avec l'argument --force-run
+        echo "-> Commande exécutée: python '${{ env.ENGINE_SCRIPT }}' --force-run ${{ env.FORCE_RUN }}"
         python "${{ env.ENGINE_SCRIPT }}" --force-run ${{ env.FORCE_RUN }}
-          
+        
+        # Log après l'exécution
+        echo "## ✅ Exécution du script terminée. Vérification du statut de sortie..."
+        
     # 💾 ÉTAPE 4: Sauvegarde des artefacts
     - name: 💾 Sauvegarde des Artefacts de génération
       uses: actions/upload-artifact@v4
@@ -82,14 +108,23 @@ jobs:
         name: resultats-${{ github.run_id }}
         path: app/${{ env.OUTPUT_ROOT }} 
         retention-days: 7 
+      run: |
+        echo "## 💾 Vérification du dossier des artefacts: app/${{ env.OUTPUT_ROOT }}"
+        # Liste le contenu du répertoire de sortie pour confirmer que des fichiers existent
+        ls -R app/${{ env.OUTPUT_ROOT }} || echo "⚠️ Le dossier de sortie est vide ou n'existe pas."
         
     # 🔔 ÉTAPE 5: Notifications
     - name: 🔔 Notification de Succès
       if: success()
       run: |
+        echo "==========================================="
         echo "🎉 Le workflow de production s'est terminé avec succès !"
+        echo "==========================================="
         
     - name: 🔔 Notification d'Échec
       if: failure()
       run: |
+        echo "==========================================="
         echo "❌ ÉCHEC CRITIQUE: Le workflow de production a échoué."
+        echo "❌ Veuillez consulter les logs des étapes précédentes pour diagnostiquer le problème."
+        echo "==========================================="

@@ -265,10 +265,10 @@ if __name__ == "__main__":
         print("✅ Test réussi")
     else:
         print("❌ Test échoué")        
-        self._ensure_directory(image_dir)
+        self.ensure_directory(image_dir)
         
         # CORRECTION : Séparer le for et le print
-        for i in range(num_images):
+            for i in range(num_images):
             img_path = os.path.join(image_dir, f"placeholder_{i}.jpg")
             self._create_simple_image(img_path, f"Image {i+1}")
             images.append(img_path)

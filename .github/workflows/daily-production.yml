@@ -14,7 +14,7 @@ on:
 jobs:
   generate-video:
     runs-on: ubuntu-latest
-    timeout-minutes: 15 # Augmenté à 15 min pour le montage vidéo
+    timeout-minutes: 15
     
     steps:
       # ÉTAPE 1: Récupération du code source
@@ -34,7 +34,6 @@ jobs:
       - name: 📦 Installation des dépendances système
         run: |
           sudo apt-get update -y
-          # Installation plus propre
           sudo apt-get install -y ffmpeg espeak libespeak1
           echo "✅ Dépendances système installées"
       
@@ -42,37 +41,97 @@ jobs:
       - name: 🔧 Installation des dépendances Python
         run: |
           python -m pip install --upgrade pip
-          # Utiliser un seul bloc pour l'installation des dépendances vidéo complètes
-          # Suppression du "if [ -f requirements.txt ]" pour la clarté de l'exemple
           pip install Pillow numpy requests openai gtts moviepy pydub
           echo "✅ Dépendances Python installées"
 
-      # --- Modules Python sont désormais codés dans le dépôt (bonne pratique) ---
-      
       # ÉTAPE 5: Création de la structure de dossiers
       - name: 📁 Création de l'arborescence
         run: |
           mkdir -p output/{videos,audio,images,logs}
           echo "✅ Structure de dossiers créée"
       
-      # ÉTAPE 6: Exportation des secrets (meilleure pratique)
-      - name: 🔑 Exportation des secrets
+      # ÉTAPE 6: Vérification des fichiers existants
+      - name: 🔍 Vérification des composants
         run: |
-          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
-          echo "DEBUG_MODE=${{ github.event.inputs.debug_mode }}" >> $GITHUB_ENV
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          echo "🔍 Vérification des fichiers content_factory..."
+          echo "📁 Contenu du dossier content_factory/:"
+          ls -la content_factory/
+          echo " "
+          
+          # Test des imports Python
+          python3 -c "
+try:
+    from content_factory.image_manager import ImageManager
+    from content_factory.audio_generator import AudioGenerator  
+    from content_factory.video_creator import VideoCreator
+    from content_factory.content_generator import ContentGenerator
+    from content_factory.auto_content_engine import main
+    print('✅ Tous les imports fonctionnent')
+except Exception as e:
+    print(f'❌ Erreur import: {e}')
+    exit(1)
+          "
+          echo "✅ Tous les composants sont opérationnels"
 
-      # ÉTAPE 7: Exécution de la génération
+      # ÉTAPE 7: Désactivation YouTube Uploader si nécessaire
+      - name: 🚫 Désactivation YouTube Uploader
+        run: |
+          echo "🔧 Désactivation temporaire de YouTube Uploader..."
+          python3 -c "
+import re
+
+try:
+    with open('content_factory/auto_content_engine.py', 'r') as f:
+        content = f.read()
+    
+    # Désactiver les appels à YouTubeUploader
+    new_content = re.sub(
+        r'YouTubeUploader\(\)', 
+        '# YouTubeUploader()  # Désactivé temporairement', 
+        content
+    )
+    
+    # Désactiver l'import si présent
+    new_content = re.sub(
+        r'^from youtube_uploader import YouTubeUploader',
+        '# from youtube_uploader import YouTubeUploader  # Désactivé',
+        new_content,
+        flags=re.MULTILINE
+    )
+    
+    with open('content_factory/auto_content_engine.py', 'w') as f:
+        f.write(new_content)
+    
+    print('✅ YouTube Uploader désactivé')
+    
+except Exception as e:
+    print(f'⚠️ Impossible de désactiver YouTube Uploader: {e}')
+          "
+
+      # ÉTAPE 8: Configuration de l'environnement
+      - name: 🔑 Configuration des variables
+        run: |
+          echo "DEBUG_MODE=${{ github.event.inputs.debug_mode || 'false' }}" >> $GITHUB_ENV
+          echo "✅ Variables d'environnement configurées"
+
+      # ÉTAPE 9: Exécution de la génération
       - name: 🎬 Exécution du Moteur de Contenu
         run: |
           echo "🎬 LANCEMENT DE LA GÉNÉRATION..."
-          python content_factory/main_engine.py
-        env:
-          # Assurez-vous que les variables d'environnement sont disponibles ici aussi
-          DEBUG_MODE: ${{ github.event.inputs.debug_mode }}
+          echo "📜 Utilisation de: content_factory/auto_content_engine.py"
+          echo "🔧 Mode Debug: $DEBUG_MODE"
+          
+          # Vérifier que le fichier existe
+          if [ -f "content_factory/auto_content_engine.py" ]; then
+            python content_factory/auto_content_engine.py
+          else
+            echo "❌ Fichier auto_content_engine.py non trouvé"
+            echo "📋 Fichiers disponibles:"
+            find content_factory/ -name "*.py" | head -10
+            exit 1
+          fi
 
-      # ÉTAPE 8: Sauvegarde des résultats
+      # ÉTAPE 10: Sauvegarde des résultats
       - name: 💾 Sauvegarde des artefacts
         uses: actions/upload-artifact@v4
         with:
@@ -82,17 +141,43 @@ jobs:
           retention-days: 2
           if-no-files-found: warn
 
-      # ÉTAPE 9: Rapport final
+      # ÉTAPE 11: Rapport final détaillé
       - name: 📊 Rapport final
         if: always()
         run: |
           echo " "
           echo "📊 RAPPORT FINAL DE GÉNÉRATION"
           echo "================================"
-          # Afficher si le fichier rapport principal existe
+          echo "🏃 Workflow: $GITHUB_WORKFLOW"
+          echo "📅 Exécution: $(date)"
+          echo "🔧 Mode Debug: $DEBUG_MODE"
+          echo " "
+          
+          echo "📁 CONTENU GÉNÉRÉ:"
+          echo "------------------"
+          for dossier in videos audio images logs; do
+            if [ -d "output/$dossier" ]; then
+              count=$(find "output/$dossier" -type f 2>/dev/null | wc -l)
+              echo "📂 output/$dossier: $count fichiers"
+            else
+              echo "📂 output/$dossier: dossier non trouvé"
+            fi
+          done
+          
+          echo " "
+          echo "🔍 FICHIERS DÉTAILLÉS:"
+          echo "---------------------"
+          find output/ -type f 2>/dev/null | while read file; do
+            size=$(du -h "$file" 2>/dev/null | cut -f1 | head -1 || echo "0K")
+            echo "📄 $(basename "$file") ($size)"
+          done || echo "Aucun fichier trouvé dans output/"
+          
+          echo " "
           if [ -f "output/logs/rapport_generation.txt" ]; then
+            echo "📋 RAPPORT PRINCIPAL:"
+            echo "-------------------"
             cat output/logs/rapport_generation.txt
-          else
-            echo "⚠️ Fichier rapport introuvable."
-            echo "Vérifiez les logs d'erreur dans output/logs/."
           fi
+          
+          echo " "
+          echo "🎉 PROCESSUS TERMINÉ !"

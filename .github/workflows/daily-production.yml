@@ -31,7 +31,7 @@ jobs:
   engine_run:
     runs-on: ubuntu-latest
     
-    # NOTE: Le bloc 'container:' a été retiré pour éviter l'erreur 'ContainerId'. FFMPEG est installé manuellement dans l'Étape 2.
+    # NOTE: L'image Docker a été retirée. FFMPEG est installé manuellement dans l'Étape 2.
     
     # VARIABLES D'ENVIRONNEMENT GLOBALES
     env:
@@ -61,46 +61,45 @@ jobs:
           echo "## 📦 Démarrage de la Préparation de l'Environnement"
           echo "==========================================="
           
-          # --- INSTALLATION DE FFMPEG SUR L'HÔTE UBUNTU ---
+          # Installation de FFMPEG sur l'hôte Ubuntu
           echo "-> Installation du paquet FFMPEG..."
           sudo apt-get update
           sudo apt-get install -y ffmpeg
           
           # Mise à jour et installation des dépendances Python
-          echo "-> Mise à jour de pip et installation des dépendances Python..."
+          echo "-> Installation des dépendances Python..."
           python -m pip install --upgrade pip setuptools
           pip install -r requirements.txt 
           
           echo "## ✅ Préparation de l'environnement terminée."
           
-      # 🚀 ÉTAPE 3: Exécution du Moteur (avec Correction d'Import)
+      # 🚀 ÉTAPE 3: Exécution du Moteur (Mode Module)
       - name: 🚀 Lancement du Moteur de Contenu
         working-directory: ./app
+        env:
+          # Assure que le répertoire parent est dans PYTHONPATH pour les imports
+          PYTHONPATH: ${{ github.workspace }}/app
         run: |
           echo "========================================================================================================="
-          echo "## 🚀 Démarrage de l'Exécution du Moteur"
-          echo "## Script: ${{ env.ENGINE_SCRIPT }}"
-          echo "## Argument --force-run: ${{ env.FORCE_RUN }}"
+          echo "## 🚀 Démarrage de l'Exécution du Moteur (Mode Module)"
           echo "========================================================================================================="
           
-          # --- CORRECTION DE L'IMPORTERROR ---
-          # Ajoute le répertoire de travail actuel (./app) au PYTHONPATH pour les imports relatifs.
-          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          # Correction finale de l'ImportError: Exécution en tant que module.
+          MODULE_PATH="content_factory.auto_content_engine"
           
-          # Exécution du moteur Python
-          echo "-> Commande exécutée: python '${{ env.ENGINE_SCRIPT }}' --force-run ${{ env.FORCE_RUN }}"
-          python "${{ env.ENGINE_SCRIPT }}" --force-run ${{ env.FORCE_RUN }}
+          echo "-> Commande exécutée: python -m ${MODULE_PATH} --force-run ${{ env.FORCE_RUN }}"
+          python -m "${MODULE_PATH}" --force-run ${{ env.FORCE_RUN }}
           
           echo "## ✅ Exécution du script terminée."
           
-      # 💾 ÉTAPE 4 (a): Log et vérification des artefacts (étape RUN séparée)
+      # 💾 ÉTAPE 4 (a): Log et vérification des artefacts
       - name: 💾 Vérification des Artefacts avant Upload
         if: always() 
         run: |
           echo "## 💾 Vérification du dossier des artefacts: app/${{ env.OUTPUT_ROOT }}"
           ls -R app/${{ env.OUTPUT_ROOT }} || echo "⚠️ Le dossier de sortie est vide ou n'existe pas."
 
-      # 💾 ÉTAPE 4 (b): Sauvegarde des artefacts (étape USES séparée)
+      # 💾 ÉTAPE 4 (b): Sauvegarde des artefacts (Upload)
       - name: ⬆️ Upload des Artefacts de génération
         uses: actions/upload-artifact@v4
         if: always() 
@@ -110,7 +109,7 @@ jobs:
           retention-days: 7 
           
   # ===============================================
-  # JOB 2: Notifications et Logs de Fin (SANS conteneur, s'exécute toujours)
+  # JOB 2: Notifications (S'exécute toujours pour le rapport)
   # ===============================================
   notification_job:
     runs-on: ubuntu-latest

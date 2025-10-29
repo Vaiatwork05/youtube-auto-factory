@@ -35,10 +35,10 @@ jobs:
         run: |
           mkdir -p output/videos output/audio output/images output/logs
 
-      - name: 🔧 Corriger ImageManager (méthode Python)
+      - name: 🔧 Corriger ImageManager (script séparé)
         run: |
           echo "🔧 Vérification/correction ImageManager..."
-          python3 -c "
+          python3 << 'EOF'
           import os
           
           # Vérifier si ImageManager existe déjà
@@ -50,18 +50,17 @@ jobs:
           else:
               print('📝 Ajout de ImageManager...')
               new_content = content + '''
-
 class ImageManager:
     def __init__(self):
-        self.image_dir = \"output/images\"
+        self.image_dir = "output/images"
         os.makedirs(self.image_dir, exist_ok=True)
     
     def get_images_for_content(self, content_data, num_images=6):
-        \"\"\"Récupère des images pour le contenu\"\"\"
-        print(\"🖼️  Récupération d'images...\")
+        """Récupère des images pour le contenu"""
+        print("🖼️  Récupération d'images...")
         images = []
         for i in range(num_images):
-            img_path = os.path.join(self.image_dir, f\"image_{i}.jpg\")
+            img_path = os.path.join(self.image_dir, f"image_{i}.jpg")
             # Créer une image simple
             from PIL import Image, ImageDraw, ImageFont
             img = Image.new('RGB', (1280, 720), color=(i*40, 100, 150))
@@ -73,12 +72,12 @@ class ImageManager:
               with open('content_factory/image_manager.py', 'w') as f:
                   f.write(new_content)
               print('✅ ImageManager ajouté')
-          "
+EOF
 
-      - name: 🔧 Désactiver YouTube Upload (méthode Python)
+      - name: 🔧 Désactiver YouTube Upload (script séparé)
         run: |
-          echo "🔧 Désactivation YouTube Upload avec Python..."
-          python3 -c "
+          echo "🔧 Désactivation YouTube Upload..."
+          python3 << 'EOF'
           # Lire le fichier
           with open('content_factory/auto_content_engine.py', 'r') as f:
               lines = f.readlines()
@@ -96,7 +95,7 @@ class ImageManager:
               f.writelines(new_lines)
           
           print('✅ YouTube Upload désactivé')
-          "
+EOF
 
       - name: 🧪 Test final
         run: |

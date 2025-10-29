@@ -267,3 +267,19 @@ if __name__ == "__main__":
         print("✅ Test réussi")
     else:
         print("❌ Test échoué")
+
+class ImageManager:
+    def __init__(self):
+        self.image_dir = "output/images"
+        os.makedirs(self.image_dir, exist_ok=True)
+    
+    def get_images_for_content(self, content_data, num_images=6):
+        images = []
+        for i in range(num_images):
+            img_path = os.path.join(self.image_dir, f"image_{i}.jpg")
+            # Créer une image simple
+            from PIL import Image
+            img = Image.new('RGB', (1280, 720), color=(i*40, 100, 150))
+            img.save(img_path)
+            images.append(img_path)
+        return images

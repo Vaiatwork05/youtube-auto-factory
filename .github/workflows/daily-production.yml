@@ -2,115 +2,97 @@ name: 🚀 Génération Vidéo Automatisée
 
 on:
   workflow_dispatch:
+    inputs:
+      debug_mode:
+        description: 'Activer le mode Debug (création d''images factices)'
+        required: false
+        type: boolean
+        default: false
   schedule:
-    - cron: "0 6 * * *"
+    - cron: "0 6,12,18 * * *" # 6h00, 12h00, 18h00 UTC
 
 jobs:
   generate-video:
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # Augmenté à 15 min pour le montage vidéo
     
     steps:
-      - name: 📥 Checkout du code
+      # ÉTAPE 1: Récupération du code source
+      - name: 📥 Checkout du repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - name: 🐍 Configuration Python
-        uses: actions/setup-python@v4
+      # ÉTAPE 2: Configuration de l'environnement Python
+      - name: 🐍 Configuration de Python 3.10
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+          cache: 'pip'
 
+      # ÉTAPE 3: Installation des dépendances système
+      - name: 📦 Installation des dépendances système
+        run: |
+          sudo apt-get update -y
+          # Installation plus propre
+          sudo apt-get install -y ffmpeg espeak libespeak1
+          echo "✅ Dépendances système installées"
+      
+      # ÉTAPE 4: Installation des dépendances Python
       - name: 🔧 Installation des dépendances Python
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            echo "📦 Installation des dépendances de base..."
-            pip install pillow numpy requests
-          fi
+          # Utiliser un seul bloc pour l'installation des dépendances vidéo complètes
+          # Suppression du "if [ -f requirements.txt ]" pour la clarté de l'exemple
+          pip install Pillow numpy requests openai gtts moviepy pydub
+          echo "✅ Dépendances Python installées"
 
+      # --- Modules Python sont désormais codés dans le dépôt (bonne pratique) ---
+      
+      # ÉTAPE 5: Création de la structure de dossiers
       - name: 📁 Création de l'arborescence
         run: |
-          mkdir -p output/videos output/audio output/images output/logs content_factory
+          mkdir -p output/{videos,audio,images,logs}
           echo "✅ Structure de dossiers créée"
-
-      - name: 🖼️ Vérification ImageManager
+      
+      # ÉTAPE 6: Exportation des secrets (meilleure pratique)
+      - name: 🔑 Exportation des secrets
         run: |
-          echo "🔍 Vérification du module ImageManager..."
-          
-          # Créer le fichier s'il n'existe pas
-          if [ ! -f "content_factory/image_manager.py" ]; then
-            echo "📝 Création du fichier image_manager.py..."
-            cat > content_factory/image_manager.py << 'PYEOF'
-class ImageManager:
-    """
-    Gestionnaire d'images pour la génération de contenu vidéo
-    """
-    
-    def __init__(self):
-        """Initialise le gestionnaire d'images"""
-        import os
-        self.image_dir = "output/images"
-        os.makedirs(self.image_dir, exist_ok=True)
-        print(f"📁 Dossier images: {self.image_dir}")
-    
-    def get_images_for_content(self, content_data, num_images=3):
-        """
-        Génère des images pour le contenu
-        """
-        import os
-        print(f"🖼️ Génération de {num_images} images...")
-        images = []
-        
-        try:
-            from PIL import Image, ImageDraw
-            
-            for i in range(num_images):
-                img_path = os.path.join(self.image_dir, f"image_{i+1:02d}.jpg")
-                
-                # Créer une image avec couleur variée
-                couleur_r = (i * 60) % 255
-                couleur_g = 100
-                couleur_b = 150
-                
-                img = Image.new('RGB', (800, 600), color=(couleur_r, couleur_g, couleur_b))
-                draw = ImageDraw.Draw(img)
-                
-                # Ajouter un texte simple
-                draw.text((50, 50), f"Image {i+1}", fill=(255, 255, 255))
-                
-                img.save(img_path, quality=85)
-                images.append(img_path)
-                print(f"  ✅ Image {i+1} générée")
-            
-        except ImportError:
-            print("⚠️ PIL non disponible, création de fichiers texte...")
-            for i in range(num_images):
-                img_path = os.path.join(self.image_dir, f"image_{i+1:02d}.txt")
-                with open(img_path, 'w') as f:
-                    f.write(f"Placeholder image {i+1}")
-                images.append(img_path)
-        
-        print(f"✅ {len(images)} images générées")
-        return images
-PYEOF
-            echo "✅ Fichier image_manager.py créé"
-          else
-            echo "✅ Fichier image_manager.py existe déjà"
-          fi
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
+          echo "DEBUG_MODE=${{ github.event.inputs.debug_mode }}" >> $GITHUB_ENV
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: 🧪 Test d'ImageManager
+      # ÉTAPE 7: Exécution de la génération
+      - name: 🎬 Exécution du Moteur de Contenu
         run: |
-          echo "🧪 Test de la classe ImageManager..."
-          python3 -c "
-from content_factory.image_manager import ImageManager
-manager = ImageManager()
-images = manager.get_images_for_content({'titre': 'Test'}, 2)
-print(f'🎉 Test réussi! {len(images)} images créées')
-"
+          echo "🎬 LANCEMENT DE LA GÉNÉRATION..."
+          python content_factory/main_engine.py
+        env:
+          # Assurez-vous que les variables d'environnement sont disponibles ici aussi
+          DEBUG_MODE: ${{ github.event.inputs.debug_mode }}
 
-      - name: 💾 Sauvegarde des résultats
+      # ÉTAPE 8: Sauvegarde des résultats
+      - name: 💾 Sauvegarde des artefacts
         uses: actions/upload-artifact@v4
         with:
-          name: contenus-generees
-          path: output/
-          retention-days: 1
+          name: generation-resultats-${{ github.sha }}
+          path: |
+            output/
+          retention-days: 2
+          if-no-files-found: warn
+
+      # ÉTAPE 9: Rapport final
+      - name: 📊 Rapport final
+        if: always()
+        run: |
+          echo " "
+          echo "📊 RAPPORT FINAL DE GÉNÉRATION"
+          echo "================================"
+          # Afficher si le fichier rapport principal existe
+          if [ -f "output/logs/rapport_generation.txt" ]; then
+            cat output/logs/rapport_generation.txt
+          else
+            echo "⚠️ Fichier rapport introuvable."
+            echo "Vérifiez les logs d'erreur dans output/logs/."
+          fi

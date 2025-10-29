@@ -1,4 +1,3 @@
-# .github/workflows/daily-production.yml
 # Workflow final optimisé pour la production quotidienne.
 
 name: 🚀 Production - Lancement Quotidien du Moteur

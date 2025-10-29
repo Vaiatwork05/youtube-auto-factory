@@ -26,18 +26,19 @@ permissions:
 jobs:
   
   # ===============================================
-  # JOB 1: Exécution du Moteur (SANS Conteneur Docker)
+  # JOB 1: Exécution du Moteur (Optimisé avec Cache)
   # ===============================================
   engine_run:
     runs-on: ubuntu-latest
     
-    # NOTE: L'image Docker a été retirée. FFMPEG est installé manuellement dans l'Étape 2.
-    
     # VARIABLES D'ENVIRONNEMENT GLOBALES
     env:
       FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }} 
-      ENGINE_SCRIPT: 'content_factory/auto_content_engine.py'
+      ENGINE_SCRIPT: 'content_factory.auto_content_engine' # Modifié pour le mode module
       OUTPUT_ROOT: 'output' 
+      
+      # Assure que le répertoire parent est dans PYTHONPATH pour les imports (Correction d'ImportError)
+      PYTHONPATH: ${{ github.workspace }}/app
       
       # 🔑 INJECTION DES SECRETS
       UNSPLASH_API_KEY: ${{ secrets.UNSPLASH_API_KEY }}
@@ -52,7 +53,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: app 
-      
+          
+      # 💾 NOUVELLE ÉTAPE: Cache des dépendances Python (pour accélérer les runs)
+      - name: 💾 Cache des dépendances Python
+        uses: actions/cache@v4
+        with:
+          # Le chemin où l'environnement virtuel est créé
+          path: app/venv 
+          # La clé change si le contenu de requirements.txt change
+          key: ${{ runner.os }}-pip-${{ hashFiles('app/requirements.txt') }}
+          # Permet de récupérer une version antérieure du cache si la clé principale ne matche pas
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       # 📦 ÉTAPE 2: Préparation, Installation de FFMPEG et Dépendances Python
       - name: 📦 Préparation de l'environnement et Installation de FFMPEG
         working-directory: ./app 
@@ -66,9 +79,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
           
-          # Mise à jour et installation des dépendances Python
-          echo "-> Installation des dépendances Python..."
-          python -m pip install --upgrade pip setuptools
+          # --- Installation des dépendances Python (avec ou sans cache) ---
+          echo "-> Configuration de l'environnement virtuel (Venv)..."
+          python3 -m venv venv
+          source venv/bin/activate
+          
+          # ⭐ Auto-update pip
+          echo "-> Auto-mise à jour de pip..."
+          pip install --upgrade pip setuptools
+
+          echo "-> Installation des dépendances Python (via cache ou téléchargement)..."
           pip install -r requirements.txt 
           
           echo "## ✅ Préparation de l'environnement terminée."
@@ -76,16 +96,15 @@ jobs:
       # 🚀 ÉTAPE 3: Exécution du Moteur (Mode Module)
       - name: 🚀 Lancement du Moteur de Contenu
         working-directory: ./app
-        env:
-          # Assure que le répertoire parent est dans PYTHONPATH pour les imports
-          PYTHONPATH: ${{ github.workspace }}/app
         run: |
+          # Activation de l'environnement virtuel pour exécuter le script
+          source venv/bin/activate
+          
           echo "========================================================================================================="
           echo "## 🚀 Démarrage de l'Exécution du Moteur (Mode Module)"
           echo "========================================================================================================="
           
-          # Correction finale de l'ImportError: Exécution en tant que module.
-          # Utilisation de 'python -m' pour forcer Python à reconnaître 'content_factory' comme un paquet.
+          # Exécution en tant que module (Correction d'ImportError)
           MODULE_PATH="content_factory.auto_content_engine"
           
           echo "-> Commande exécutée: python -m ${MODULE_PATH} --force-run ${{ env.FORCE_RUN }}"

@@ -1,328 +1,270 @@
-# content_factory/video_creator.py
+# content_factory/image_manager.py
+
 import os
 import sys
 import time
-import re
-import traceback
+import requests
 from typing import Dict, Any, List, Optional
+from datetime import datetime, timedelta
 
-# Imports des dépendances des autres modules du projet
+# Imports des modules du projet
 from content_factory.utils import clean_filename, safe_path_join, ensure_directory
-# NOTE: AudioGenerator et ImageManager sont importés dans les méthodes pour la gestion des fallbacks (bon choix).
+from content_factory.config_loader import ConfigLoader 
+from PIL import Image # Nécessaire pour le redimensionnement
 
 # --- CONSTANTES ---
-DEFAULT_VIDEO_DIR = "output/videos"
-DEFAULT_AUDIO_DIR = "output/audio"
-DEFAULT_IMAGE_DIR = "output/images"
-VIDEO_FPS = 24
-VIDEO_CODEC = 'libx264'
-AUDIO_CODEC = 'aac'
-VIDEO_RESOLUTION = (1280, 720) # 720p (HD 16:9)
+# Utilisation de l'API Unsplash par défaut
+UNSPLASH_BASE_URL = "https://api.unsplash.com/search/photos"
 
-class VideoCreator:
+class ImageManager:
     """
-    Crée une vidéo en utilisant des clips images et un fichier audio.
-    Gère les fallbacks pour l'audio, les images et la vidéo finale.
+    Gère l'acquisition, le téléchargement et le cache des images.
+    Utilise l'API Unsplash avec un système de cache local pour optimiser les appels.
     """
     def __init__(self):
-        self.output_dir = DEFAULT_VIDEO_DIR
-        ensure_directory(self.output_dir)
-    
-    def create_professional_video(self, content_data: Dict[str, Any]) -> Optional[str]:
+        self.config = ConfigLoader().get_config()
+        self.image_config = self.config['IMAGE_MANAGER']
+        self.paths = self.config['PATHS']
+
+        # Paramètres Unsplash
+        self.api_key: str = self.config['SECRETS'].get('UNSPLASH_API_KEY', None)
+        
+        # Chemins et paramètres de gestion
+        self.download_dir: str = safe_path_join(self.paths['OUTPUT_ROOT'], self.paths['IMAGE_DIR'])
+        self.cache_enabled: bool = self.image_config.get('CACHE_IMAGES', True)
+        self.cleanup_enabled: bool = self.image_config.get('CLEANUP_OLD_IMAGES', True)
+        self.max_images_to_keep: int = self.image_config.get('MAX_IMAGES_TO_KEEP', 50)
+        
+        # Paramètres de redimensionnement (synchronisés avec VideoCreator)
+        self.target_resolution: List[int] = self.config['VIDEO_CREATOR'].get('RESOLUTION', [1280, 720])
+        
+        if not self.api_key:
+            print("❌ ERREUR: UNSPLASH_API_KEY non configurée. La recherche d'images échouera.")
+        
+        ensure_directory(self.download_dir)
+
+    def get_images_for_content(self, content_data: Dict[str, Any], num_images: int) -> List[str]:
         """
-        Fonction principale pour créer une vidéo, avec un meilleur nom.
+        Trouve les images pour un contenu donné, en utilisant le cache si possible.
         """
-        try:
-            print("\n🎬 Démarrage de la production vidéo...")
-            
-            title = content_data.get('title', 'Vidéo Automatique')
-            script = content_data.get('script', 'Contenu généré.')
-            clean_title = clean_filename(title)
-            
-            video_path = safe_path_join(self.output_dir, f"video_{clean_title}.mp4")
-            
-            print(f"📝 Titre: {title}")
-            
-            # --- ÉTAPE 1: Générer/Obtenir l'Audio ---
-            audio_path = self._generate_audio(script, clean_title)
-            if not audio_path or os.path.getsize(audio_path) < 1024:
-                 raise RuntimeError("Échec de la génération audio ou fichier trop petit.")
-            
-            # --- ÉTAPE 2: Obtenir les Images ---
-            num_images = 6 
-            image_paths = self._get_images(content_data, num_images)
-            
-            if not image_paths:
-                print("❌ Aucune image disponible (même les fallbacks ont échoué). Tentative de vidéo de secours.")
-                # Renvoie un échec pour passer à la vidéo de secours globale
-                return self._create_fallback_video(content_data)
-
-            # --- ÉTAPE 3: Assembler la Vidéo ---
-            print("🎥 Assemblage vidéo...")
-            result_path = self._create_video_from_assets(image_paths, audio_path, video_path)
-            
-            if result_path and os.path.exists(result_path) and os.path.getsize(result_path) > 10 * 1024: # 10KB min
-                file_size = os.path.getsize(result_path)
-                print(f"✅ Vidéo créée avec succès: {result_path} ({file_size / (1024*1024):.2f} Mo)")
-                return result_path
-            else:
-                # Échec de la création de la vidéo à partir des assets
-                print("❌ Échec de la création du fichier final à partir des assets.")
-                return self._create_fallback_video(content_data) # Tente le dernier secours
-                
-        except Exception as e:
-            print(f"❌ Erreur critique dans create_professional_video: {e}")
-            print("Tentative de vidéo de secours...")
-            return self._create_fallback_video(content_data)
-    
-    # --- Méthodes d'Acquisition ---
-
-    def _generate_audio(self, text: str, clean_title: str) -> Optional[str]:
-        """Génère l'audio via AudioGenerator, avec fallback silencieux."""
-        try:
-            from content_factory.audio_generator import generate_audio as generate_proj_audio # Utilise la fonction d'export
-            return generate_proj_audio(text, clean_title)
-        except ImportError:
-            print("⚠️ Module AudioGenerator non trouvé.")
-        except Exception as e:
-            print(f"⚠️ Erreur génération audio projet: {e}")
-        
-        # Fallback 1: Audio silencieux FFmpeg
-        audio_path = safe_path_join(DEFAULT_AUDIO_DIR, f"audio_fallback_{clean_title}.mp3")
-        ensure_directory(DEFAULT_AUDIO_DIR)
-        try:
-            import subprocess
-            print("🔊 Fallback : Création d'un audio silencieux de 30s...")
-            subprocess.run([
-                'ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
-                '-t', '30', '-acodec', 'libmp3lame', '-y', audio_path
-            ], check=True, capture_output=True, timeout=30)
-            return audio_path
-        except Exception as e:
-            print(f"⚠️ Erreur FFmpeg pour audio silencieux: {e}")
-            return None # Échec total de l'audio
-
-    def _get_images(self, content_data: Dict[str, Any], num_images: int) -> List[str]:
-        """Récupère des images via ImageManager, avec fallback sur des images générées."""
-        images = []
-        try:
-            from content_factory.image_manager import ImageManager
-            manager = ImageManager()
-            images = manager.get_images_for_content(content_data, num_images)
-        except ImportError:
-             print("⚠️ Module ImageManager non trouvé.")
-        except Exception as e:
-            print(f"⚠️ Erreur récupération images projet: {e}")
-        
-        # Fallback 1: Images de secours internes
-        if not images or len(images) < num_images:
-            print(f"🖼️ Fallback : Création de {num_images} images de secours simples.")
-            images = self._create_fallback_images(num_images, content_data.get('title', 'Placeholder'))
-
-        return images
-    
-    def _create_fallback_images(self, num_images: int, base_title: str) -> List[str]:
-        """Crée des images de secours simples (nécessite PIL)."""
-        images = []
-        ensure_directory(DEFAULT_IMAGE_DIR)
-        
-        try:
-            from PIL import Image, ImageDraw, ImageFont
-            for i in range(num_images):
-                img_path = safe_path_join(DEFAULT_IMAGE_DIR, f"placeholder_{clean_filename(base_title)}_{i}.jpg")
-                text = f"ERREUR IMAGES - Clip {i+1}"
-                self._create_simple_image(img_path, text)
-                images.append(img_path)
-            return images
-        except ImportError:
-            print("❌ La bibliothèque PIL n'est pas installée. Impossible de créer des images de secours.")
+        if not self.api_key:
             return []
 
-    # --- Méthodes de Support ---
+        images: List[str] = []
+        keywords: List[str] = content_data.get('keywords', [])
+        
+        print(f"\n🖼️ Recherche d'images pour {len(keywords)} mots-clés (max {num_images} images)...")
 
-    def _create_simple_image(self, path: str, text: str):
-        """Crée une image simple 1280x720 avec texte (nécessite PIL)."""
-        from PIL import Image, ImageDraw, ImageFont # Imports supposés réussis ici
-        
-        img = Image.new('RGB', VIDEO_RESOLUTION, color=(53, 94, 159))
-        draw = ImageDraw.Draw(img)
-        
-        try:
-            # Tente Arial, sinon Fallback sur la police du système ou la police par défaut
-            font = ImageFont.truetype("arial.ttf", 60)
-        except Exception:
-             try:
-                # Chemin typique sur Linux (pour GitHub Actions)
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
-             except Exception:
-                font = ImageFont.load_default()
-        
-        # Centrer le texte (Calcul de la Bbox plus précis pour le centrage)
-        # Nécessite PIL 8.0+ pour draw.textbbox
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        
-        x = (VIDEO_RESOLUTION[0] - text_width) // 2
-        y = (VIDEO_RESOLUTION[1] - text_height) // 2
-        
-        draw.text((x, y), text, fill=(255, 255, 255), font=font)
-        img.save(path, quality=85)
-    
-    # --- Méthode d'Assemblage Critique ---
+        for keyword in keywords:
+            if len(images) >= num_images:
+                break
+                
+            keyword = keyword.strip()
+            
+            # 1. Tenter le cache
+            cached_path = self._get_from_cache(keyword)
+            if cached_path:
+                images.append(cached_path)
+                print(f"   Cache HIT: '{keyword}' -> {os.path.basename(cached_path)}")
+                continue
 
-    def _create_video_from_assets(self, image_paths: List[str], audio_path: str, output_path: str) -> Optional[str]:
-        """Assemble les clips vidéo et audio (nécessite moviepy)."""
+            # 2. Tenter l'API (si le cache a échoué)
+            image_path = self._fetch_and_download_image(keyword)
+            if image_path:
+                images.append(image_path)
+                print(f"   API SUCCESS: '{keyword}' -> {os.path.basename(image_path)}")
+            else:
+                print(f"   API FAILED: '{keyword}' n'a retourné aucune image.")
+
+        # Nettoyage à la fin du processus si activé
+        if self.cleanup_enabled:
+            self._cleanup_old_files()
+
+        # Retourne les images trouvées (peut être moins que num_images)
+        return images[:num_images]
+
+    # --- Gestion du Cache ---
+
+    def _get_cache_path(self, keyword: str) -> str:
+        """Retourne un nom de fichier standardisé pour le cache."""
+        clean_kw = clean_filename(keyword)[:30]
+        return safe_path_join(self.download_dir, f"cache_{clean_kw}.jpg")
+
+    def _get_from_cache(self, keyword: str) -> Optional[str]:
+        """Vérifie si une image existe déjà pour ce mot-clé."""
+        if not self.cache_enabled:
+            return None
+            
+        cache_path = self._get_cache_path(keyword)
+        
+        if os.path.exists(cache_path):
+            # Mettre à jour la date d'accès pour le nettoyage futur
+            os.utime(cache_path, None) 
+            return cache_path
+            
+        return None
+
+    def _save_to_cache(self, keyword: str, image_content: bytes) -> Optional[str]:
+        """Sauvegarde le contenu d'une image téléchargée sur le disque."""
+        cache_path = self._get_cache_path(keyword)
         try:
-            from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
-        except ImportError:
-            print("❌ La bibliothèque moviepy n'est pas installée. Impossible d'assembler la vidéo.")
+            # 1. Sauvegarde brute
+            with open(cache_path, 'wb') as f:
+                f.write(image_content)
+                
+            # 2. Redimensionnement (pour accélérer l'assemblage vidéo)
+            self._resize_and_save_image(cache_path, self.target_resolution)
+            
+            return cache_path
+        except Exception as e:
+            print(f"❌ Erreur lors de la sauvegarde/redimensionnement du cache: {e}")
             return None
 
-        # Vérifications
-        if not os.path.exists(audio_path) or not image_paths:
-            print("Erreur assets: Fichier audio ou images manquants.")
-            return None
+    # --- Requête API ---
+
+    def _fetch_and_download_image(self, keyword: str) -> Optional[str]:
+        """Appelle l'API Unsplash, télécharge et met en cache l'image."""
+        
+        headers = {
+            "Authorization": f"Client-ID {self.api_key}",
+            "Accept-Version": "v1"
+        }
+        params = {
+            "query": keyword,
+            "orientation": "landscape", # Format 16:9
+            "per_page": 1, # On ne prend que la meilleure image
+        }
         
         try:
-            # Durée et calcul
-            audio_clip = AudioFileClip(audio_path)
-            audio_duration = audio_clip.duration
-            if audio_duration < 1.0: # Minimum 1 seconde
-                audio_duration = 10.0
-                print("⚠️ Durée audio trop courte (< 1s), ajustée à 10s.")
+            response = requests.get(UNSPLASH_BASE_URL, headers=headers, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
             
-            duration_per_image = audio_duration / len(image_paths)
-            
-            print(f"⏱️ Durée audio: {audio_duration:.1f}s | ⏰ Durée/image: {duration_per_image:.1f}s")
-            
-            # Créer les clips images
-            video_clips = []
-            for i, img_path in enumerate(image_paths):
-                # Utiliser la taille fixée et s'assurer que l'image est redimensionnée pour le format 16:9
-                clip = ImageClip(img_path, duration=duration_per_image).set_opacity(1.0)
-                # Redimensionnement avec mise à l'échelle pour s'adapter à la résolution (remplace le resize height=720)
-                clip = clip.resize(newsize=VIDEO_RESOLUTION) 
-                video_clips.append(clip)
-            
-            # Concaténer
-            final_video = concatenate_videoclips(video_clips, method="compose")
-            final_video = final_video.set_audio(audio_clip)
-            final_video = final_video.set_duration(audio_duration)
-            
-            # Exporter avec paramètres optimisés
-            final_video.write_videofile(
-                output_path,
-                fps=VIDEO_FPS,
-                codec=VIDEO_CODEC,
-                audio_codec=AUDIO_CODEC,
-                bitrate='5000k', # Augmentation du bitrate pour meilleure qualité (5 Mbps est bon pour 720p)
-                verbose=False,
-                logger=None,
-                threads=4
-            )
-            
-            return output_path
-            
-        finally:
-            # Nettoyage des ressources (très important pour les performances en CI)
-            if 'audio_clip' in locals(): audio_clip.close()
-            if 'video_clips' in locals(): 
-                for clip in video_clips: clip.close()
-            if 'final_video' in locals(): final_video.close()
+            if not data or not data.get('results'):
+                return None
 
-    # --- Méthode de Secours Ultime ---
-
-    def _create_fallback_video(self, content_data: Dict[str, Any]) -> Optional[str]:
-        """Crée une vidéo de secours ultra simple (10s image fixe)."""
-        try:
-            from moviepy.editor import ImageClip
-            from PIL import Image
-        except ImportError:
-            print("❌ moviepy/PIL manquant. Impossible de créer une vidéo de secours.")
+            # On prend la première image (la plus pertinente)
+            image_info = data['results'][0]
+            # Utilisation du lien 'regular' pour une bonne résolution
+            download_url = image_info['urls']['regular'] 
+            
+            # Téléchargement effectif de l'image
+            image_response = requests.get(download_url, stream=True, timeout=15)
+            image_response.raise_for_status()
+            
+            # Mise en cache et redimensionnement
+            return self._save_to_cache(keyword, image_response.content)
+            
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Erreur API/Téléchargement Unsplash pour '{keyword}': {e}")
             return None
 
-        title = content_data.get('title', 'Vidéo Secours')
-        video_path = safe_path_join(self.output_dir, f"fallback_{clean_filename(title)}.mp4")
-        
-        # 1. Créer l'image de secours
-        img_path = safe_path_join(DEFAULT_IMAGE_DIR, "fallback_ultra.jpg")
-        ensure_directory(DEFAULT_IMAGE_DIR)
-        self._create_simple_image(img_path, f"Échec Critique - {title[:30]}")
-        
-        # 2. Créer la vidéo
-        clip = ImageClip(img_path, duration=10)
-        clip = clip.resize(newsize=VIDEO_RESOLUTION)
-        
-        # Exportation simple
-        clip.write_videofile(
-            video_path,
-            fps=VIDEO_FPS,
-            codec=VIDEO_CODEC,
-            verbose=False,
-            logger=None
-        )
-        clip.close()
-        
-        print(f"✅ Vidéo de secours finale créée: {video_path}")
-        return video_path
-        
-    # La fonction _clean_filename est supprimée car elle est maintenant dans utils.py
+    # --- Support PIL (Redimensionnement) ---
 
-# --- Fonction d'Export ---
-def create_video(content_data: Dict[str, Any]) -> Optional[str]:
-    """Fonction principale pour créer une vidéo"""
-    creator = VideoCreator()
-    return creator.create_professional_video(content_data)
+    def _resize_and_save_image(self, path: str, target_size: List[int]):
+        """Redimensionne et ré-enregistre l'image pour optimiser l'assemblage vidéo."""
+        
+        try:
+            target_width, target_height = target_size[0], target_size[1]
+            img = Image.open(path)
+            
+            # Calculer le ratio pour que l'image couvre l'espace 16:9 (cover)
+            original_width, original_height = img.size
+            target_ratio = target_width / target_height
+            original_ratio = original_width / original_height
+            
+            if original_ratio > target_ratio:
+                # L'original est plus large -> rogner les côtés
+                new_width = int(target_ratio * original_height)
+                left = (original_width - new_width) // 2
+                right = left + new_width
+                img = img.crop((left, 0, right, original_height))
+            elif original_ratio < target_ratio:
+                # L'original est plus haut -> rogner le haut et le bas
+                new_height = int(original_width / target_ratio)
+                top = (original_height - new_height) // 2
+                bottom = top + new_height
+                img = img.crop((0, top, original_width, bottom))
 
-# --- Bloc de Test ---
+            # Redimensionnement final à la résolution cible
+            img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+            
+            # Ré-enregistrement en JPG optimisé
+            img.save(path, format='JPEG', quality=85)
+            
+        except Exception as e:
+            print(f"⚠️ Échec du redimensionnement PIL pour {path}: {e}")
+            # Laisser le fichier original (non redimensionné)
+            pass
+
+    # --- Nettoyage ---
+
+    def _cleanup_old_files(self):
+        """Supprime les fichiers les moins récemment accédés si la limite est dépassée."""
+        if not self.cleanup_enabled:
+            return
+
+        all_files = [
+            safe_path_join(self.download_dir, f)
+            for f in os.listdir(self.download_dir)
+            if os.path.isfile(safe_path_join(self.download_dir, f))
+        ]
+        
+        if len(all_files) <= self.max_images_to_keep:
+            return
+
+        # Trier par temps d'accès (plus vieux en premier)
+        all_files.sort(key=os.path.getatime)
+        
+        # Calculer le nombre de fichiers à supprimer
+        files_to_delete = len(all_files) - self.max_images_to_keep
+        
+        if files_to_delete > 0:
+            print(f"🧹 Nettoyage: Suppression de {files_to_delete} anciens fichiers du cache...")
+            for i in range(files_to_delete):
+                try:
+                    os.remove(all_files[i])
+                except Exception as e:
+                    print(f"⚠️ Erreur lors de la suppression de {os.path.basename(all_files[i])}: {e}")
+        
+# --- Fonction d'Export et de Test ---
+
+def get_images(content_data: Dict[str, Any], num_images: int) -> List[str]:
+    """Fonction d'export simple."""
+    manager = ImageManager()
+    return manager.get_images_for_content(content_data, num_images)
+
 if __name__ == "__main__":
-    print("🧪 Test VideoCreator...")
+    print("🧪 Test ImageManager (Nécessite une clé UNSPLASH_API_KEY valide dans la config)...")
     
-    # Simulation de données (pour éviter les dépendances réelles des autres modules lors du test)
-    class MockAudioGenerator:
-        def generate_audio(self, text, title):
-            # Créer un fichier audio silencieux temporaire pour le test
-            audio_path = os.path.join(DEFAULT_AUDIO_DIR, "test_audio.mp3")
-            ensure_directory(DEFAULT_AUDIO_DIR)
-            try:
-                import subprocess
-                subprocess.run(['ffmpeg', '-f', 'lavfi', '-i', 'anullsrc', '-t', '5', '-y', audio_path], check=True, capture_output=True, timeout=10)
-                return audio_path
-            except: return None
+    # ⚠️ IMPORTANT: Pour le test, la clé Unsplash doit être dans votre config.yaml ou .env
+    
+    try:
+        manager = ImageManager()
+        
+        test_data = {
+            'title': 'Test de la ville de Paris',
+            'script': 'La tour Eiffel et la Seine en plein soleil.',
+            'keywords': ['Tour Eiffel', 'Paris', 'Seine', 'Architecture']
+        }
+        
+        num_images_needed = 4
+        results = manager.get_images_for_content(test_data, num_images_needed)
+        
+        print("\n=== RAPPORT DE TEST IMAGE ===")
+        print(f"Résultats obtenus: {len(results)}/{num_images_needed}")
+        
+        if len(results) == num_images_needed:
+            print("✅ Succès: Toutes les images ont été trouvées et mises en cache/téléchargées.")
+            print("Liste des fichiers:")
+            for r in results:
+                 print(f" - {os.path.basename(r)}")
+            sys.exit(0)
+        else:
+            print("❌ Échec: Le nombre d'images trouvées n'est pas le nombre attendu.")
+            print("Vérifiez votre clé API et la connexion.")
+            sys.exit(1)
             
-    class MockImageManager:
-        def get_images_for_content(self, content_data, num_images):
-            # Créer des images temporaires pour le test
-            images = []
-            ensure_directory(DEFAULT_IMAGE_DIR)
-            try:
-                from PIL import Image
-                for i in range(num_images):
-                    img_path = os.path.join(DEFAULT_IMAGE_DIR, f"test_img_{i}.jpg")
-                    Image.new('RGB', (1280, 720), color=(150, 150, i*30)).save(img_path)
-                    images.append(img_path)
-                return images
-            except: return []
-
-    # Injecter les mocks pour le test (simule l'import si nécessaire)
-    sys.modules['content_factory.audio_generator'] = type('module', (object,), {'generate_audio': MockAudioGenerator().generate_audio})
-    sys.modules['content_factory.image_manager'] = type('module', (object,), {'ImageManager': MockImageManager})
-
-    test_data = {
-        'title': 'Test Vidéo Fonctionnel',
-        'script': 'Ceci est un test du système de création vidéo pour vérifier l’assemblage final.',
-        'keywords': ['test', 'video', 'systeme']
-    }
-    
-    creator = VideoCreator()
-    result = creator.create_professional_video(test_data)
-    
-    if result and os.path.exists(result):
-        print(f"\n✅ Test réussi. Fichier généré: {result}")
-        # Nettoyage optionnel
-        # os.remove(result)
-        sys.exit(0)
-    else:
-        print("\n❌ Test échoué. Vérifiez que moviepy, ffmpeg et PIL sont installés.")
+    except Exception as e:
+        print(f"\n❌ Erreur critique lors du test: {e}")
         sys.exit(1)

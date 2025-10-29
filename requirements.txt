@@ -1,23 +1,47 @@
-# Dependencies principales SANS versions fixes problématiques
-moviepy==1.0.3
-Pillow==10.1.0
-numpy==1.24.3
-imageio==2.31.0
-imageio-ffmpeg==0.4.9
-python-dotenv==1.0.0
-edge-tts==6.1.9
-gtts==2.5.1
-aiohttp==3.9.1
-pydub==0.25.1
-opencv-python==4.8.1.78
-colorama==0.4.6
-decorator==4.4.2
+# requirements.txt
+# Fichier des dépendances du projet "YouTube Auto Factory"
 
-# REQUESTS avec version compatible (supprimé la version fixe)
+# ===============================================
+# CRITIQUES (Noyau, Vidéo, Audio, Utilitaires)
+# ===============================================
+
+# Génération et Edition Vidéo (moviepy nécessite les packages suivants)
+moviepy>=1.0.3,<2.0
+Pillow>=10.1.0,<11.0.0
+numpy>=1.24.3,<2.0.0
+imageio>=2.31.0,<3.0.0
+imageio-ffmpeg>=0.4.9,<1.0.0
+
+# Utilitaires de Chemins/Fichiers
 requests>=2.27,<3.0
+python-dotenv>=1.0.0,<2.0.0
 
-# Dependances optionnelles (installées séparément si besoin)
-# google-api-python-client==2.108.0
-# google-auth-oauthlib==1.1.0  
-# google-auth-httplib2==0.1.1
-# python-unsplash==1.1.0
+# Audio (pour les tests ou les fallbacks)
+edge-tts>=6.1.9,<7.0.0
+gtts>=2.5.1,<3.0.0
+aiohttp>=3.9.1,<4.0.0
+pydub>=0.25.1,<1.0.0
+colorama>=0.4.6,<1.0.0
+decorator>=4.4.2,<5.0.0
+
+# Dépendance commune pour l'analyse d'images/vidéos (si ImageManager l'utilise)
+opencv-python>=4.8.1.78,<5.0.0
+
+
+# ===============================================
+# AUTHENTIFICATION & CONFIGURATION (CRITIQUE pour l'Upload et YAML)
+# ===============================================
+
+# YAML Loader (pour config_loader.py)
+PyYAML>=6.0.1,<7.0.0 
+
+# YouTube Uploader (nécessaires pour youtube_uploader.py)
+google-api-python-client>=2.108.0,<3.0.0
+google-auth>=2.23.4,<3.0.0 # Base d'authentification OAuth
+google-auth-oauthlib>=1.1.0,<2.0.0 # Support OAuth 2.0 (refresh token)
+google-auth-httplib2>=0.1.1,<1.0.0
+
+# ===============================================
+# OPTIONNEL / IA (Si ces modules existent dans votre projet)
+# ===============================================
+# python-unsplash>=1.1.0,<2.0.0 

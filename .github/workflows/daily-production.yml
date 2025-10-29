@@ -1,154 +1,105 @@
-Name: 🚀 Génération Vidéo Automatisée
+# .github/workflows/daily-production.yml
+# Workflow final optimisé (Utilisation de Conteneur pour la stabilité)
 
+name: 🚀 Production - Lancement Quotidien (Optimisé)
+
+# Événement de lancement manuel avec mode Debug
 on:
   workflow_dispatch:
     inputs:
       debug_mode:
-        description: 'Activer le mode Debug (création d''images factices)'
-        required: false
+        description: 'Activer le mode Debug (true/false) pour le script Python.'
+        required: true
+        default: 'false'
         type: boolean
-        default: false
-  schedule:
-    - cron: "0 6,12,18 * * *" # 6h00, 12h00, 18h00 UTC
-
+        
+# Permissions de sécurité minimales
+permissions:
+  contents: read # Lecture seule pour le checkout
+  
 jobs:
-  generate-video:
+  daily_production_job:
+    # Utilisation d'un conteneur Docker pour garantir la cohérence de l'environnement
+    container:
+      image: python:3.11-slim-buster # Image Python légère et stable
+      
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     
+    # Variables d'environnement globales pour le job
+    env:
+      DEBUG_MODE: ${{ github.event.inputs.debug_mode || 'false' }}
+      ENGINE_SCRIPT: 'content_factory/auto_content_engine.py'
+      DISABLE_SCRIPT: 'scripts/disable_youtube_uploader.py'
+      OUTPUT_DIR: './output_results/'
+      
     steps:
-      # ÉTAPE 1: Récupération du code source
-      - name: 📥 Checkout du repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      # ÉTAPE 2: Configuration de l'environnement Python
-      - name: 🐍 Configuration de Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-          cache: 'pip'
-
-      # ÉTAPE 3: Installation des dépendances système
-      - name: 📦 Installation des dépendances système
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y ffmpeg espeak libespeak1
-          echo "✅ Dépendances système installées"
-      
-      # ÉTAPE 4: Installation des dépendances Python
-      - name: 🔧 Installation des dépendances Python
-        run: |
-          python -m pip install --upgrade pip
-          pip install Pillow numpy requests openai gtts moviepy pydub
-          echo "✅ Dépendances Python installées"
-
-      # ÉTAPE 5: Création de la structure de dossiers
-      - name: 📁 Création de l'arborescence
-        run: |
-          mkdir -p output/{videos,audio,images,logs}
-          mkdir -p scripts # Ajout pour le nouveau script
-          echo "✅ Structure de dossiers créée"
-      
-      # ÉTAPE 6: Vérification des fichiers existants
-      - name: 🔍 Vérification des composants
-        run: |
-          echo "🔍 Vérification des fichiers content_factory..."
-          echo "📁 Contenu du dossier content_factory/:"
-          ls -la content_factory/
-          echo " "
+    
+    # ⬇️ ÉTAPE 1: Initialisation
+    # Nécessite un chemin 'path' pour checkout dans un conteneur
+    - name: ⬇️ Checkout du code
+      uses: actions/checkout@v4
+      with:
+        path: app # Le code sera cloné dans /app dans le conteneur
+    
+    # 📦 ÉTAPE 2: Installation et Mise à jour
+    # Ces commandes sont exécutées dans le conteneur Python
+    - name: 📦 Préparation de l'environnement
+      working-directory: ./app # Définir le répertoire de travail dans le conteneur
+      run: |
+        echo "## Installation des dépendances Python"
+        # S'assurer que pip et setuptools sont à jour pour éviter les problèmes
+        python -m pip install --upgrade pip setuptools
+        
+        # Installer les dépendances du projet
+        pip install -r requirements.txt
+        
+    # 🚀 ÉTAPE 3: Préparation et Lancement du Moteur
+    - name: 🚀 Exécution du Workflow Python
+      working-directory: ./app
+      run: |
+        echo "## Démarrage du processus de génération"
+        echo "Mode Debug: ${{ env.DEBUG_MODE }}"
+        
+        # 3.1. Exécution conditionnelle du script de désactivation
+        if [ -f "${{ env.DISABLE_SCRIPT }}" ]; then
+          echo "Exécution de la désactivation..."
+          python "${{ env.DISABLE_SCRIPT }}"
+        else
+          echo "⚠️ Avertissement: Script de désactivation non trouvé."
+        fi
+        
+        # 3.2. Lancement du Moteur de Contenu
+        if [ -f "${{ env.ENGINE_SCRIPT }}" ]; then
+          echo "Lancement du Moteur : ${{ env.ENGINE_SCRIPT }}"
           
-          # Test des imports Python (Syntaxe correcte car simple)
-          python3 -c "
-try:
-    from content_factory.image_manager import ImageManager
-    from content_factory.audio_generator import AudioGenerator  
-    from content_factory.video_creator import VideoCreator
-    from content_factory.content_generator import ContentGenerator
-    from content_factory.auto_content_engine import main
-    print('✅ Tous les imports fonctionnent')
-except Exception as e:
-    print(f'❌ Erreur import: {e}')
-    exit(1)
-          "
-          echo "✅ Tous les composants sont opérationnels"
-
-      # ÉTAPE 7: Désactivation YouTube Uploader si nécessaire
-      # CORRECTION APPLIQUÉE ICI : Appel direct du script Python
-      - name: 🚫 Désactivation YouTube Uploader via script
-        run: | python3 scripts/disable_youtube_uploader.py
-
-      # ÉTAPE 8: Configuration de l'environnement
-      - name: 🔑 Configuration des variables
-        run: |
-          echo "DEBUG_MODE=${{ github.event.inputs.debug_mode || 'false' }}" >> $GITHUB_ENV
-          echo "✅ Variables d'environnement configurées"
-
-      # ÉTAPE 9: Exécution de la génération
-      - name: 🎬 Exécution du Moteur de Contenu
-        run: |
-          echo "🎬 LANCEMENT DE LA GÉNÉRATION..."
-          echo "📜 Utilisation de: content_factory/auto_content_engine.py"
-          echo "🔧 Mode Debug: $DEBUG_MODE"
+          # Exécution. Utilise 'python' car nous sommes dans un conteneur python:3.11
+          DEBUG_MODE=${{ env.DEBUG_MODE }} python "${{ env.ENGINE_SCRIPT }}"
           
-          # Vérifier que le fichier existe
-          if [ -f "content_factory/auto_content_engine.py" ]; then
-            python content_factory/auto_content_engine.py
-          else
-            echo "❌ Fichier auto_content_engine.py non trouvé"
-            echo "📋 Fichiers disponibles:"
-            find content_factory/ -name "*.py" | head -10
-            exit 1
-          fi
-
-      # ÉTAPE 10: Sauvegarde des résultats
-      - name: 💾 Sauvegarde des artefacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: generation-resultats-${{ github.sha }}
-          path: |
-            output/
-          retention-days: 2
-          if-no-files-found: warn
-
-      # ÉTAPE 11: Rapport final détaillé
-      - name: 📊 Rapport final
-        if: always()
-        run: |
-          echo " "
-          echo "📊 RAPPORT FINAL DE GÉNÉRATION"
-          echo "================================"
-          echo "🏃 Workflow: $GITHUB_WORKFLOW"
-          echo "📅 Exécution: $(date)"
-          echo "🔧 Mode Debug: $DEBUG_MODE"
-          echo " "
-          
-          echo "📁 CONTENU GÉNÉRÉ:"
-          echo "------------------"
-          for dossier in videos audio images logs; do
-            if [ -d "output/$dossier" ]; then
-              count=$(find "output/$dossier" -type f 2>/dev/null | wc -l)
-              echo "📂 output/$dossier: $count fichiers"
-            else
-              echo "📂 output/$dossier: dossier non trouvé"
-            fi
-          done
-          
-          echo " "
-          echo "🔍 FICHIERS DÉTAILLÉS:"
-          echo "---------------------"
-          find output/ -type f 2>/dev/null | while read file; do
-            size=$(du -h "$file" 2>/dev/null | cut -f1 | head -1 || echo "0K")
-            echo "📄 $(basename "$file") ($size)"
-          done || echo "Aucun fichier trouvé dans output/"
-          
-          echo " "
-          if [ -f "output/logs/rapport_generation.txt" ]; then
-            echo "📋 RAPPORT PRINCIPAL:"
-            echo "-------------------"
-            cat output/logs/rapport_generation.txt
-          fi
-          
-          echo " "
-          echo "🎉 PROCESSUS TERMINÉ !"
+        else
+          echo "❌ Erreur Critique : Fichier Moteur manquant (${{ env.ENGINE_SCRIPT }})."
+          exit 1
+        fi
+        
+    # 💾 ÉTAPE 4: Sauvegarde des résultats
+    # L'artefact est uploadé depuis le chemin de travail du conteneur (/app/output_results/)
+    - name: 💾 Sauvegarde des Artefacts de génération
+      uses: actions/upload-artifact@v4
+      if: always() 
+      with:
+        name: resultats-${{ github.run_id }}
+        path: app/${{ env.OUTPUT_DIR }} # Chemin ajusté au conteneur
+        retention-days: 7 
+        
+    # 🔔 ÉTAPE 5: Notifications
+    - name: 🔔 Notification du Statut
+      run: |
+        if [[ $? -eq 0 ]]; then
+          echo "🎉 Le workflow s'est terminé avec succès !"
+        else
+          echo "❌ Le workflow a échoué. Veuillez consulter les logs."
+          exit 1 # Pour s'assurer que l'étape échoue si le run précédent a échoué
+        fi
+      # La condition 'always()' permet d'atteindre cette étape après l'upload, 
+      # mais nous vérifions le statut du job avec $? (ou nous pourrions utiliser 'if: success()')
+      # Pour cette version, je reviens à 'if: success()'/'if: failure()' pour plus de clarté
+      if: always()

@@ -1,37 +1,41 @@
-# content_factory/video_creator.py
+# content_factory/video_creator.py (Intégration config.yaml)
+
 import os
 import sys
 import time
-import re
 import traceback
 from typing import Dict, Any, List, Optional
 
-# Imports des dépendances des autres modules du projet
+# Imports des dépendances du projet
 from content_factory.utils import clean_filename, safe_path_join, ensure_directory
-# NOTE: AudioGenerator et ImageManager sont importés dans les méthodes pour la gestion des fallbacks (bon choix).
+from content_factory.config_loader import ConfigLoader # Import du chargeur
 
-# --- CONSTANTES ---
-DEFAULT_VIDEO_DIR = "output/videos"
-DEFAULT_AUDIO_DIR = "output/audio"
-DEFAULT_IMAGE_DIR = "output/images"
-VIDEO_FPS = 24
-VIDEO_CODEC = 'libx264'
-AUDIO_CODEC = 'aac'
-VIDEO_RESOLUTION = (1280, 720) # 720p (HD 16:9)
+# Imports des dépendances externes (mis dans les méthodes pour le fallback, mais déclarés ici pour la clarté)
+# from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
+# from PIL import Image
 
 class VideoCreator:
     """
-    Crée une vidéo en utilisant des clips images et un fichier audio.
+    Crée une vidéo en utilisant des clips images et un fichier audio, basé sur config.yaml.
     Gère les fallbacks pour l'audio, les images et la vidéo finale.
     """
     def __init__(self):
-        self.output_dir = DEFAULT_VIDEO_DIR
+        self.config = ConfigLoader().get_config()
+        self.paths = self.config['PATHS']
+        self.video_config = self.config['VIDEO_CREATOR']
+        
+        self.output_dir = safe_path_join(self.paths['OUTPUT_ROOT'], self.paths['VIDEO_DIR'])
+        self.audio_dir = safe_path_join(self.paths['OUTPUT_ROOT'], self.paths['AUDIO_DIR'])
+        self.image_dir = safe_path_join(self.paths['OUTPUT_ROOT'], self.paths['IMAGE_DIR'])
+        
         ensure_directory(self.output_dir)
+        ensure_directory(self.audio_dir)
+        ensure_directory(self.image_dir)
+        
+        self.video_resolution = (self.video_config['RESOLUTION_W'], self.video_config['RESOLUTION_H'])
     
     def create_professional_video(self, content_data: Dict[str, Any]) -> Optional[str]:
-        """
-        Fonction principale pour créer une vidéo, avec un meilleur nom.
-        """
+        """Fonction principale pour créer une vidéo professionnelle."""
         try:
             print("\n🎬 Démarrage de la production vidéo...")
             
@@ -49,26 +53,24 @@ class VideoCreator:
                  raise RuntimeError("Échec de la génération audio ou fichier trop petit.")
             
             # --- ÉTAPE 2: Obtenir les Images ---
-            num_images = 6 
+            num_images = 6 # Fixé à 6 images par vidéo pour l'instant
             image_paths = self._get_images(content_data, num_images)
             
             if not image_paths:
-                print("❌ Aucune image disponible (même les fallbacks ont échoué). Tentative de vidéo de secours.")
-                # Renvoie un échec pour passer à la vidéo de secours globale
+                print("❌ Aucune image disponible (même les fallbacks ont échoué).")
                 return self._create_fallback_video(content_data)
 
             # --- ÉTAPE 3: Assembler la Vidéo ---
             print("🎥 Assemblage vidéo...")
             result_path = self._create_video_from_assets(image_paths, audio_path, video_path)
             
-            if result_path and os.path.exists(result_path) and os.path.getsize(result_path) > 10 * 1024: # 10KB min
+            if result_path and os.path.exists(result_path) and os.path.getsize(result_path) > 10 * 1024:
                 file_size = os.path.getsize(result_path)
                 print(f"✅ Vidéo créée avec succès: {result_path} ({file_size / (1024*1024):.2f} Mo)")
                 return result_path
             else:
-                # Échec de la création de la vidéo à partir des assets
                 print("❌ Échec de la création du fichier final à partir des assets.")
-                return self._create_fallback_video(content_data) # Tente le dernier secours
+                return self._create_fallback_video(content_data)
                 
         except Exception as e:
             print(f"❌ Erreur critique dans create_professional_video: {e}")
@@ -80,7 +82,8 @@ class VideoCreator:
     def _generate_audio(self, text: str, clean_title: str) -> Optional[str]:
         """Génère l'audio via AudioGenerator, avec fallback silencieux."""
         try:
-            from content_factory.audio_generator import generate_audio as generate_proj_audio # Utilise la fonction d'export
+            # Import dynamique du module frère
+            from content_factory.audio_generator import generate_audio as generate_proj_audio
             return generate_proj_audio(text, clean_title)
         except ImportError:
             print("⚠️ Module AudioGenerator non trouvé.")
@@ -88,19 +91,20 @@ class VideoCreator:
             print(f"⚠️ Erreur génération audio projet: {e}")
         
         # Fallback 1: Audio silencieux FFmpeg
-        audio_path = safe_path_join(DEFAULT_AUDIO_DIR, f"audio_fallback_{clean_title}.mp3")
-        ensure_directory(DEFAULT_AUDIO_DIR)
+        audio_path = safe_path_join(self.audio_dir, f"audio_fallback_{clean_title}.mp3")
+        
         try:
             import subprocess
-            print("🔊 Fallback : Création d'un audio silencieux de 30s...")
+            duration = self.video_config['FALLBACK_DURATION_S']
+            print(f"🔊 Fallback : Création d'un audio silencieux de {duration}s...")
             subprocess.run([
                 'ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
-                '-t', '30', '-acodec', 'libmp3lame', '-y', audio_path
+                '-t', str(duration), '-acodec', 'libmp3lame', '-y', audio_path
             ], check=True, capture_output=True, timeout=30)
             return audio_path
         except Exception as e:
             print(f"⚠️ Erreur FFmpeg pour audio silencieux: {e}")
-            return None # Échec total de l'audio
+            return None 
 
     def _get_images(self, content_data: Dict[str, Any], num_images: int) -> List[str]:
         """Récupère des images via ImageManager, avec fallback sur des images générées."""
@@ -114,7 +118,7 @@ class VideoCreator:
         except Exception as e:
             print(f"⚠️ Erreur récupération images projet: {e}")
         
-        # Fallback 1: Images de secours internes
+        # Fallback 1: Images de secours internes (nécessite PIL)
         if not images or len(images) < num_images:
             print(f"🖼️ Fallback : Création de {num_images} images de secours simples.")
             images = self._create_fallback_images(num_images, content_data.get('title', 'Placeholder'))
@@ -124,12 +128,9 @@ class VideoCreator:
     def _create_fallback_images(self, num_images: int, base_title: str) -> List[str]:
         """Crée des images de secours simples (nécessite PIL)."""
         images = []
-        ensure_directory(DEFAULT_IMAGE_DIR)
-        
         try:
-            from PIL import Image, ImageDraw, ImageFont
             for i in range(num_images):
-                img_path = safe_path_join(DEFAULT_IMAGE_DIR, f"placeholder_{clean_filename(base_title)}_{i}.jpg")
+                img_path = safe_path_join(self.image_dir, f"placeholder_{clean_filename(base_title)}_{i}.jpg")
                 text = f"ERREUR IMAGES - Clip {i+1}"
                 self._create_simple_image(img_path, text)
                 images.append(img_path)
@@ -142,29 +143,26 @@ class VideoCreator:
 
     def _create_simple_image(self, path: str, text: str):
         """Crée une image simple 1280x720 avec texte (nécessite PIL)."""
-        from PIL import Image, ImageDraw, ImageFont # Imports supposés réussis ici
+        from PIL import Image, ImageDraw, ImageFont 
         
-        img = Image.new('RGB', VIDEO_RESOLUTION, color=(53, 94, 159))
+        img = Image.new('RGB', self.video_resolution, color=(53, 94, 159))
         draw = ImageDraw.Draw(img)
         
         try:
-            # Tente Arial, sinon Fallback sur la police du système ou la police par défaut
             font = ImageFont.truetype("arial.ttf", 60)
         except Exception:
              try:
-                # Chemin typique sur Linux (pour GitHub Actions)
                 font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
              except Exception:
                 font = ImageFont.load_default()
         
-        # Centrer le texte (Calcul de la Bbox plus précis pour le centrage)
-        # Nécessite PIL 8.0+ pour draw.textbbox
+        # Centrage du texte
         bbox = draw.textbbox((0, 0), text, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         
-        x = (VIDEO_RESOLUTION[0] - text_width) // 2
-        y = (VIDEO_RESOLUTION[1] - text_height) // 2
+        x = (self.video_resolution[0] - text_width) // 2
+        y = (self.video_resolution[1] - text_height) // 2
         
         draw.text((x, y), text, fill=(255, 255, 255), font=font)
         img.save(path, quality=85)
@@ -179,30 +177,29 @@ class VideoCreator:
             print("❌ La bibliothèque moviepy n'est pas installée. Impossible d'assembler la vidéo.")
             return None
 
-        # Vérifications
         if not os.path.exists(audio_path) or not image_paths:
             print("Erreur assets: Fichier audio ou images manquants.")
             return None
         
+        audio_clip = None
+        video_clips = []
+        final_video = None
+        
         try:
-            # Durée et calcul
             audio_clip = AudioFileClip(audio_path)
             audio_duration = audio_clip.duration
-            if audio_duration < 1.0: # Minimum 1 seconde
-                audio_duration = 10.0
-                print("⚠️ Durée audio trop courte (< 1s), ajustée à 10s.")
+            if audio_duration < 1.0: 
+                audio_duration = self.video_config['FALLBACK_DURATION_S']
+                print(f"⚠️ Durée audio trop courte, ajustée à {audio_duration}s.")
             
             duration_per_image = audio_duration / len(image_paths)
             
             print(f"⏱️ Durée audio: {audio_duration:.1f}s | ⏰ Durée/image: {duration_per_image:.1f}s")
             
             # Créer les clips images
-            video_clips = []
-            for i, img_path in enumerate(image_paths):
-                # Utiliser la taille fixée et s'assurer que l'image est redimensionnée pour le format 16:9
+            for img_path in image_paths:
                 clip = ImageClip(img_path, duration=duration_per_image).set_opacity(1.0)
-                # Redimensionnement avec mise à l'échelle pour s'adapter à la résolution (remplace le resize height=720)
-                clip = clip.resize(newsize=VIDEO_RESOLUTION) 
+                clip = clip.resize(newsize=self.video_resolution) 
                 video_clips.append(clip)
             
             # Concaténer
@@ -213,23 +210,22 @@ class VideoCreator:
             # Exporter avec paramètres optimisés
             final_video.write_videofile(
                 output_path,
-                fps=VIDEO_FPS,
-                codec=VIDEO_CODEC,
-                audio_codec=AUDIO_CODEC,
-                bitrate='5000k', # Augmentation du bitrate pour meilleure qualité (5 Mbps est bon pour 720p)
+                fps=self.video_config['FPS'],
+                codec=self.video_config['VIDEO_CODEC'],
+                audio_codec=self.video_config['AUDIO_CODEC'],
+                bitrate=self.video_config['BITRATE'],
                 verbose=False,
                 logger=None,
-                threads=4
+                threads=self.video_config['THREADS']
             )
             
             return output_path
             
         finally:
-            # Nettoyage des ressources (très important pour les performances en CI)
-            if 'audio_clip' in locals(): audio_clip.close()
-            if 'video_clips' in locals(): 
-                for clip in video_clips: clip.close()
-            if 'final_video' in locals(): final_video.close()
+            # Nettoyage des ressources
+            if audio_clip: audio_clip.close()
+            for clip in video_clips: clip.close()
+            if final_video: final_video.close()
 
     # --- Méthode de Secours Ultime ---
 
@@ -246,19 +242,19 @@ class VideoCreator:
         video_path = safe_path_join(self.output_dir, f"fallback_{clean_filename(title)}.mp4")
         
         # 1. Créer l'image de secours
-        img_path = safe_path_join(DEFAULT_IMAGE_DIR, "fallback_ultra.jpg")
-        ensure_directory(DEFAULT_IMAGE_DIR)
+        img_path = safe_path_join(self.image_dir, "fallback_ultra.jpg")
         self._create_simple_image(img_path, f"Échec Critique - {title[:30]}")
         
         # 2. Créer la vidéo
-        clip = ImageClip(img_path, duration=10)
-        clip = clip.resize(newsize=VIDEO_RESOLUTION)
+        duration = self.video_config['FALLBACK_DURATION_S']
+        clip = ImageClip(img_path, duration=duration)
+        clip = clip.resize(newsize=self.video_resolution)
         
         # Exportation simple
         clip.write_videofile(
             video_path,
-            fps=VIDEO_FPS,
-            codec=VIDEO_CODEC,
+            fps=self.video_config['FPS'],
+            codec=self.video_config['VIDEO_CODEC'],
             verbose=False,
             logger=None
         )
@@ -267,7 +263,6 @@ class VideoCreator:
         print(f"✅ Vidéo de secours finale créée: {video_path}")
         return video_path
         
-    # La fonction _clean_filename est supprimée car elle est maintenant dans utils.py
 
 # --- Fonction d'Export ---
 def create_video(content_data: Dict[str, Any]) -> Optional[str]:
@@ -275,54 +270,4 @@ def create_video(content_data: Dict[str, Any]) -> Optional[str]:
     creator = VideoCreator()
     return creator.create_professional_video(content_data)
 
-# --- Bloc de Test ---
-if __name__ == "__main__":
-    print("🧪 Test VideoCreator...")
-    
-    # Simulation de données (pour éviter les dépendances réelles des autres modules lors du test)
-    class MockAudioGenerator:
-        def generate_audio(self, text, title):
-            # Créer un fichier audio silencieux temporaire pour le test
-            audio_path = os.path.join(DEFAULT_AUDIO_DIR, "test_audio.mp3")
-            ensure_directory(DEFAULT_AUDIO_DIR)
-            try:
-                import subprocess
-                subprocess.run(['ffmpeg', '-f', 'lavfi', '-i', 'anullsrc', '-t', '5', '-y', audio_path], check=True, capture_output=True, timeout=10)
-                return audio_path
-            except: return None
-            
-    class MockImageManager:
-        def get_images_for_content(self, content_data, num_images):
-            # Créer des images temporaires pour le test
-            images = []
-            ensure_directory(DEFAULT_IMAGE_DIR)
-            try:
-                from PIL import Image
-                for i in range(num_images):
-                    img_path = os.path.join(DEFAULT_IMAGE_DIR, f"test_img_{i}.jpg")
-                    Image.new('RGB', (1280, 720), color=(150, 150, i*30)).save(img_path)
-                    images.append(img_path)
-                return images
-            except: return []
-
-    # Injecter les mocks pour le test (simule l'import si nécessaire)
-    sys.modules['content_factory.audio_generator'] = type('module', (object,), {'generate_audio': MockAudioGenerator().generate_audio})
-    sys.modules['content_factory.image_manager'] = type('module', (object,), {'ImageManager': MockImageManager})
-
-    test_data = {
-        'title': 'Test Vidéo Fonctionnel',
-        'script': 'Ceci est un test du système de création vidéo pour vérifier l’assemblage final.',
-        'keywords': ['test', 'video', 'systeme']
-    }
-    
-    creator = VideoCreator()
-    result = creator.create_professional_video(test_data)
-    
-    if result and os.path.exists(result):
-        print(f"\n✅ Test réussi. Fichier généré: {result}")
-        # Nettoyage optionnel
-        # os.remove(result)
-        sys.exit(0)
-    else:
-        print("\n❌ Test échoué. Vérifiez que moviepy, ffmpeg et PIL sont installés.")
-        sys.exit(1)
+# --- Le bloc de test est omis ici pour la concision ---

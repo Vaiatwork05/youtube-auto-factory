@@ -17,91 +17,143 @@ on:
 jobs:
   generate-video:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Timeout raisonnable
-    
+    timeout-minutes: 15
+
     steps:
-    - name: 📥 Checkout repository
-      uses: actions/checkout@v4
-      
-    - name: 🐍 Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-        cache: 'pip'  # Cache pip intégré
-        
-    - name: 💾 Cache system packages
-      uses: actions/cache@v3
-      with:
-        path: /var/cache/apt
-        key: ${{ runner.os }}-apt-${{ hashFiles('**/.github/workflows/*.yml') }}
-        restore-keys: |
-          ${{ runner.os }}-apt-
-          
-    - name: 💾 Cache model downloads
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cache/tts
-          ~/.cache/edge-tts
-          ~/.cache/gtts
-          ~/.cache/torch
-          ~/.cache/huggingface
-        key: ${{ runner.os }}-models-${{ github.run_id }}
-        restore-keys: |
-          ${{ runner.os }}-models-
-        
-    - name: 📦 Install system dependencies
-      run: |
-        # Mise à jour conditionnelle seulement si le cache n'existe pas
-        if [ ! -f /var/cache/apt/archives/lock ]; then
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: 💾 Cache system packages
+        uses: actions/cache@v3
+        with:
+          path: /var/cache/apt
+          key: ${{ runner.os }}-apt-${{ hashFiles('**/.github/workflows/*.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
+      - name: 💾 Cache model downloads
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/tts
+            ~/.cache/edge-tts
+            ~/.cache/gtts
+            ~/.cache/torch
+            ~/.cache/huggingface
+          key: ${{ runner.os }}-models-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-models-
+
+      - name: 📦 Install system dependencies
+        run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg espeak
           echo "✅ FFmpeg et eSpeak installés"
-        else
-          echo "✅ Cache système trouvé - installation sautée"
-        fi
-        
-    - name: 🔧 Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        
-        echo "📦 Installation des packages Python..."
-        
-        # Vérification de l'existence des fichiers
-        if [ ! -f "requirements_core.txt" ]; then
-          echo "❌ Fichier requirements_core.txt introuvable"
-          exit 1
-        fi
-        
-        echo "📄 Installation de requirements_core.txt"
-        pip install -r requirements_core.txt
-        
-        if [ -f "requirements_extra.txt" ]; then
-          echo "📄 Installation de requirements_extra.txt" 
-          pip install -r requirements_extra.txt
-        else
-          echo "ℹ️  Fichier requirements_extra.txt non trouvé - continuation sans"
-        fi
-        
-        echo "✅ Toutes les dépendances Python installées"
-        
-    - name: 💾 Cache output assets
-      uses: actions/cache@v3
-      with:
-        path: |
-          output/audio
-          output/images
-        key: ${{ runner.os }}-assets-${{ github.ref }}-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-assets-${{ github.ref }}-
-          ${{ runner.os }}-assets-
-        
-    - name: 📁 Create output directories
-      run: |
-        mkdir -p output/videos
-        mkdir -p output/audio  
-        mkdir -p output/images
-        mkdir -p output/logs
+
+      - name: 🔧 Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          echo "📦 Installation des packages Python..."
+          if [ ! -f "requirements_core.txt" ]; then
+            echo "❌ Fichier requirements_core.txt introuvable"
+            exit 1
+          fi
+          pip install -r requirements_core.txt
+          if [ -f "requirements_extra.txt" ]; then
+            pip install -r requirements_extra.txt
+          fi
+          echo "✅ Toutes les dépendances Python installées"
+
+      - name: 📁 Create output directories
+        run: |
+          mkdir -p output/videos output/audio output/images output/logs
+          echo "📁 Dossiers de sortie créés"
+
+      - name: 🧪 Test system
+        run: |
+          echo "🧪 Test du système..."
+          python -c "
+          try:
+              from content_factory.video_creator import VideoCreator
+              from content_factory.audio_generator import AudioGenerator  
+              from content_factory.image_manager import ImageManager
+              print('✅ Tous les modules importés avec succès')
+          except Exception as e:
+              print(f'❌ Erreur import: {e}')
+              exit(1)
+          "
+
+      - name: 🔍 Check Python syntax
+        run: |
+          echo "🔍 Vérification syntaxe Python..."
+          python -m py_compile content_factory/video_creator.py
+          python -m py_compile content_factory/audio_generator.py
+          python -m py_compile content_factory/image_manager.py
+          python -m py_compile content_factory/auto_content_engine.py
+          echo "✅ Tous les fichiers Python sont syntaxiquement valides"
+
+      - name: 🎬 Create video(s)
+        run: |
+          if [ "${{ inputs.run_all_slots }}" = "true" ]; then
+            echo "🕒 Début production des 4 vidéos quotidiennes..."
+            python content_factory/auto_content_engine.py --all
+          else
+            echo "🕒 Début production vidéo pour créneau actuel..."
+            python content_factory/auto_content_engine.py
+          fi
+
+      - name: 📤 Upload video artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-videos-${{ github.run_id }}
+          path: output/
+          retention-days: 1
+
+      - name: 📊 Show production summary
+        if: always()
+        run: |
+          echo "📊 RAPPORT DE PRODUCTION"
+          echo "========================"
+          echo "🕐 Heure: $(date)"
+          echo "🏃 Workflow: ${{ github.workflow }}"
+          echo "🔧 Run ID: ${{ github.run_id }}"
+          echo ""
+          echo "📹 Vidéos créées:"
+          find output/videos -name "*.mp4" -type f -exec du -h {} \; | awk '{print "   - " $2 " (" $1 ")"}'
+          echo ""
+          echo "🔊 Audios:"
+          find output/audio -name "*.mp3" -type f -exec du -h {} \; | awk '{print "   - " $2 " (" $1 ")"}'
+          echo ""
+          echo "🖼️ Images:"
+          find output/images -name "*.jpg" -type f | head -5
+          echo ""
+          echo "💾 Cache activé & optimisation réussie ✅"
+
+      - name: 🚨 Notification on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 YouTube Auto Factory - Production Failed',
+              body: `La production vidéo a échoué. Veuillez vérifier les logs du workflow.
+              
+              Détails:
+              - Workflow: ${context.workflow}
+              - Run: ${context.runId}
+              - Commit: ${context.sha}
+              - Déclencheur: ${context.eventName}
+              
+              Lien vers les logs: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            })        mkdir -p output/logs
         echo "📁 Dossiers de sortie créés"
         
     - name: 🧪 Test system

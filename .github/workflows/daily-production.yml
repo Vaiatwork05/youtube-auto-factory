@@ -35,27 +35,33 @@ jobs:
         run: |
           mkdir -p output/videos output/audio output/images output/logs
 
-      - name: 🔧 Corriger ImageManager
+      - name: 🔧 Corriger ImageManager (méthode Python)
         run: |
           echo "🔧 Vérification/correction ImageManager..."
-          # S'assurer que image_manager.py a une classe ImageManager
-          if grep -q "class ImageManager" content_factory/image_manager.py; then
-            echo "✅ ImageManager existe déjà"
-          else
-            echo "📝 Ajout de ImageManager..."
-            cat >> content_factory/image_manager.py << 'EOF'
+          python3 -c "
+          import os
+          
+          # Vérifier si ImageManager existe déjà
+          with open('content_factory/image_manager.py', 'r') as f:
+              content = f.read()
+          
+          if 'class ImageManager' in content:
+              print('✅ ImageManager existe déjà')
+          else:
+              print('📝 Ajout de ImageManager...')
+              new_content = content + '''
 
 class ImageManager:
     def __init__(self):
-        self.image_dir = "output/images"
+        self.image_dir = \"output/images\"
         os.makedirs(self.image_dir, exist_ok=True)
     
     def get_images_for_content(self, content_data, num_images=6):
-        """Récupère des images pour le contenu"""
-        print("🖼️  Récupération d'images...")
+        \"\"\"Récupère des images pour le contenu\"\"\"
+        print(\"🖼️  Récupération d'images...\")
         images = []
         for i in range(num_images):
-            img_path = os.path.join(self.image_dir, f"image_{i}.jpg")
+            img_path = os.path.join(self.image_dir, f\"image_{i}.jpg\")
             # Créer une image simple
             from PIL import Image, ImageDraw, ImageFont
             img = Image.new('RGB', (1280, 720), color=(i*40, 100, 150))
@@ -63,8 +69,11 @@ class ImageManager:
             img.save(img_path)
             images.append(img_path)
         return images
-EOF
-          fi
+'''
+              with open('content_factory/image_manager.py', 'w') as f:
+                  f.write(new_content)
+              print('✅ ImageManager ajouté')
+          "
 
       - name: 🔧 Désactiver YouTube Upload (méthode Python)
         run: |

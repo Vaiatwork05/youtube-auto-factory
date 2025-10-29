@@ -85,6 +85,7 @@ jobs:
           echo "========================================================================================================="
           
           # Correction finale de l'ImportError: Exécution en tant que module.
+          # Utilisation de 'python -m' pour forcer Python à reconnaître 'content_factory' comme un paquet.
           MODULE_PATH="content_factory.auto_content_engine"
           
           echo "-> Commande exécutée: python -m ${MODULE_PATH} --force-run ${{ env.FORCE_RUN }}"

@@ -2,7 +2,7 @@
 
 name: 🚀 Production - Lancement Quotidien du Moteur
 
-# ... (Déclencheurs et Permissions restent inchangés)
+# ... (Déclencheurs et Permissions inchangés)
 on:
   schedule:
     - cron: '0 6,10,14,18 * * *' 
@@ -20,15 +20,13 @@ permissions:
 jobs:
   
   # ===============================================
-  # JOB 1: Exécution du Moteur (Nécessite le Conteneur)
+  # JOB 1: Exécution du Moteur (MAINTENANT SANS CONTENEUR DOCKER)
   # ===============================================
   engine_run:
     runs-on: ubuntu-latest
     
-    # Définition du conteneur POUR CE JOB
-    container:
-      image: jrottenberg/ffmpeg:4.4-python3.11 
-      
+    # L'image Docker "container:" a été supprimée pour éviter l'erreur ContainerId
+    
     # Variables d'environnement pour ce Job (inchangées)
     env:
       FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }} 
@@ -40,53 +38,74 @@ jobs:
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       
     steps:
+      
       # ⬇️ ÉTAPE 1: Checkout
       - name: ⬇️ Checkout du code
         uses: actions/checkout@v4
         with:
           path: app 
       
-      # 📦 ÉTAPE 2: Installation des dépendances Python
-      - name: 📦 Préparation de l'environnement
+      # 📦 ÉTAPE 2: Préparation de l'environnement (AJOUT DE L'INSTALLATION FFMPEG)
+      - name: 📦 Préparation de l'environnement et Installation de FFMPEG
         working-directory: ./app 
         run: |
-          # ... (Logs d'installation)
+          echo "==========================================="
+          echo "## 📦 Démarrage de la Préparation de l'Environnement"
+          echo "==========================================="
+          
+          # --- INSTALLATION CRITIQUE DE FFMPEG SUR L'HÔTE ---
+          echo "-> Installation du paquet FFMPEG sur Ubuntu..."
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          
+          # Mise à jour et vérification de PIP
+          echo "-> Mise à jour de pip et installation des dépendances Python..."
           python -m pip install --upgrade pip setuptools
           pip install -r requirements.txt 
+          
+          # Log de vérification
+          echo "-> Vérification de l'outil FFMPEG installé..."
           ffmpeg -version | head -n 1
           
-      # 🚀 ÉTAPE 3: Exécution du Moteur (C'est ici que l'échec peut se produire)
+          echo "## ✅ Préparation de l'environnement terminée."
+          
+      # 🚀 ÉTAPE 3: Exécution du Moteur
       - name: 🚀 Lancement du Moteur de Contenu
         working-directory: ./app
-        id: engine_execution # Ajout d'un ID pour la référence future
         run: |
-          # ... (Logs d'exécution)
-          python "${{ env.ENGINE_SCRIPT }}" --force-run ${{ env.FORCE_RUN }}
-
-          # Vérifiez si le script a produit des fichiers pour l'upload
-          ls -R app/${{ env.OUTPUT_ROOT }} 2>/dev/null >/dev/null
-          if [ $? -eq 0 ]; then
-            echo "::set-output name=files_produced::true"
-          else
-            echo "::set-output name=files_produced::false"
-          fi
+          echo "========================================================================================================="
+          echo "## 🚀 Démarrage de l'Exécution du Moteur"
+          echo "## Script: ${{ env.ENGINE_SCRIPT }}"
+          echo "========================================================================================================="
           
-      # 💾 ÉTAPE 4: Sauvegarde des artefacts (Upload effectif)
+          # Exécution du moteur Python avec l'argument --force-run
+          python "${{ env.ENGINE_SCRIPT }}" --force-run ${{ env.FORCE_RUN }}
+          
+          echo "## ✅ Exécution du script terminée."
+          
+      # 💾 ÉTAPE 4 (a): Log et vérification des artefacts
+      - name: 💾 Vérification des Artefacts avant Upload
+        if: always() 
+        run: |
+          # ... (Logs de vérification)
+          ls -R app/${{ env.OUTPUT_ROOT }} || echo "⚠️ Le dossier de sortie est vide ou n'existe pas."
+
+      # 💾 ÉTAPE 4 (b): Sauvegarde des artefacts (Upload effectif)
       - name: ⬆️ Upload des Artefacts de génération
         uses: actions/upload-artifact@v4
-        if: always() # Upload même si le script Python échoue
+        if: always() 
         with:
           name: resultats-${{ github.run_id }}
           path: app/${{ env.OUTPUT_ROOT }} 
           retention-days: 7 
           
   # ===============================================
-  # JOB 2: Notifications et Logs de Fin (SANS conteneur)
+  # JOB 2: Notifications et Logs de Fin (inchangé)
   # ===============================================
   notification_job:
     runs-on: ubuntu-latest
-    needs: engine_run # Dépend du Job d'exécution du moteur
-    if: always() # S'exécute toujours, même si engine_run échoue
+    needs: engine_run 
+    if: always()
     
     steps:
       # 🔔 Notification de Succès

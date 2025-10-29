@@ -1,3 +1,4 @@
+# .github/workflows/daily-production.yml
 # Workflow final optimisé pour la production quotidienne.
 
 name: 🚀 Production - Lancement Quotidien du Moteur
@@ -25,8 +26,7 @@ permissions:
 jobs:
   daily_production_job:
     
-    # ⚠️ Utilisation d'un conteneur avec FFMPEG. Si ce conteneur échoue,
-    # essayez python:3.11-slim-buster et ajoutez 'sudo apt-get install ffmpeg' dans l'étape 2.
+    # ⚠️ Utilisation d'un conteneur avec FFMPEG.
     container:
       image: jrottenberg/ffmpeg:4.4-python3.11 
       
@@ -66,7 +66,6 @@ jobs:
         # Mise à jour et vérification de PIP
         echo "-> Mise à jour de pip et setuptools..."
         python -m pip install --upgrade pip setuptools
-        python -m pip --version
         
         # Installation des librairies
         echo "-> Installation des dépendances depuis requirements.txt..."
@@ -86,31 +85,31 @@ jobs:
         echo "## 🚀 Démarrage de l'Exécution du Moteur"
         echo "## Script: ${{ env.ENGINE_SCRIPT }}"
         echo "## Argument --force-run: ${{ env.FORCE_RUN }}"
-        echo "## Heure de lancement UTC: $(date -u)"
         echo "========================================================================================================="
-        
-        # Vérification des variables d'environnement (pour confirmer qu'elles sont chargées)
-        echo "-> Vérification des variables critiques: ENGINE_SCRIPT=${{ env.ENGINE_SCRIPT }}"
         
         # Exécution du moteur Python avec l'argument --force-run
         echo "-> Commande exécutée: python '${{ env.ENGINE_SCRIPT }}' --force-run ${{ env.FORCE_RUN }}"
         python "${{ env.ENGINE_SCRIPT }}" --force-run ${{ env.FORCE_RUN }}
         
         # Log après l'exécution
-        echo "## ✅ Exécution du script terminée. Vérification du statut de sortie..."
+        echo "## ✅ Exécution du script terminée."
         
-    # 💾 ÉTAPE 4: Sauvegarde des artefacts
-    - name: 💾 Sauvegarde des Artefacts de génération
+    # 💾 ÉTAPE 4 (a): Log et vérification des artefacts (Nouvelle étape RUN)
+    - name: 💾 Vérification des Artefacts avant Upload
+      if: always() 
+      run: |
+        echo "## 💾 Vérification du dossier des artefacts: app/${{ env.OUTPUT_ROOT }}"
+        # Liste le contenu du répertoire de sortie pour confirmer que des fichiers existent
+        ls -R app/${{ env.OUTPUT_ROOT }} || echo "⚠️ Le dossier de sortie est vide ou n'existe pas."
+
+    # 💾 ÉTAPE 4 (b): Sauvegarde des artefacts (Étape USES)
+    - name: ⬆️ Upload des Artefacts de génération
       uses: actions/upload-artifact@v4
       if: always() 
       with:
         name: resultats-${{ github.run_id }}
         path: app/${{ env.OUTPUT_ROOT }} 
         retention-days: 7 
-      run: |
-        echo "## 💾 Vérification du dossier des artefacts: app/${{ env.OUTPUT_ROOT }}"
-        # Liste le contenu du répertoire de sortie pour confirmer que des fichiers existent
-        ls -R app/${{ env.OUTPUT_ROOT }} || echo "⚠️ Le dossier de sortie est vide ou n'existe pas."
         
     # 🔔 ÉTAPE 5: Notifications
     - name: 🔔 Notification de Succès
@@ -125,5 +124,5 @@ jobs:
       run: |
         echo "==========================================="
         echo "❌ ÉCHEC CRITIQUE: Le workflow de production a échoué."
-        echo "❌ Veuillez consulter les logs des étapes précédentes pour diagnostiquer le problème."
+        echo "❌ Veuillez consulter les logs des étapes précédentes."
         echo "==========================================="

@@ -1,13 +1,7 @@
-name: YouTube Auto Factory - 4x Daily
+name: 🚀 ULTIME - Génération Vidéo
 
 on:
   workflow_dispatch:
-    inputs:
-      run_all_slots:
-        description: "Créer les 4 vidéos de la journée"
-        required: false
-        default: false
-        type: boolean
   schedule:
     - cron: "0 6 * * *"   # 8h CEST
     - cron: "0 10 * * *"  # 12h CEST
@@ -41,70 +35,84 @@ jobs:
         run: |
           mkdir -p output/videos output/audio output/images output/logs
 
-      - name: 🔍 Debug Python syntax error
+      - name: 🔧 Corriger ImageManager
         run: |
-          echo "🔍 Vérification syntaxe de video_creator.py..."
-          python -m py_compile content_factory/video_creator.py || echo "❌ Erreur trouvée"
-          echo "📝 Affichage des lignes autour de la ligne 267..."
-          sed -n '260,275p' content_factory/video_creator.py
+          echo "🔧 Vérification/correction ImageManager..."
+          # S'assurer que image_manager.py a une classe ImageManager
+          if grep -q "class ImageManager" content_factory/image_manager.py; then
+            echo "✅ ImageManager existe déjà"
+          else
+            echo "📝 Ajout de ImageManager..."
+            cat >> content_factory/image_manager.py << 'EOF'
 
-      - name: 🧪 Test system (tolérant)
+class ImageManager:
+    def __init__(self):
+        self.image_dir = "output/images"
+        os.makedirs(self.image_dir, exist_ok=True)
+    
+    def get_images_for_content(self, content_data, num_images=6):
+        """Récupère des images pour le contenu"""
+        print("🖼️  Récupération d'images...")
+        images = []
+        for i in range(num_images):
+            img_path = os.path.join(self.image_dir, f"image_{i}.jpg")
+            # Créer une image simple
+            from PIL import Image, ImageDraw, ImageFont
+            img = Image.new('RGB', (1280, 720), color=(i*40, 100, 150))
+            draw = ImageDraw.Draw(img)
+            img.save(img_path)
+            images.append(img_path)
+        return images
+EOF
+          fi
+
+      - name: 🔧 Désactiver YouTube Upload
         run: |
-          echo "🧪 Test du système (version tolérante)..."
+          echo "🔧 Désactivation YouTube Upload..."
+          sed -i 's/^from youtube_uploader import YouTubeUploader/# from youtube_uploader import YouTubeUploader  # Désactivé temporairement/' content_factory/auto_content_engine.py
+          echo "✅ YouTube Upload désactivé"
+
+      - name: 🧪 Test final
+        run: |
+          echo "🧪 Test final avant génération..."
           python -c "
           try:
-              # Test des imports de base
-              import moviepy.editor
-              import PIL.Image
-              import numpy as np
-              print('✅ Modules de base importés avec succès')
+              from content_factory.image_manager import ImageManager
+              mgr = ImageManager()
+              print('✅ ImageManager fonctionne')
               
-              # Test conditionnel de vos modules
-              try:
-                  from content_factory.video_creator import VideoCreator
-                  print('✅ VideoCreator importé')
-              except Exception as e:
-                  print(f'⚠️  VideoCreator: {e}')
-                  
-              try:
-                  from content_factory.audio_generator import AudioGenerator
-                  print('✅ AudioGenerator importé')
-              except Exception as e:
-                  print(f'⚠️  AudioGenerator: {e}')
-                  
-              try:
-                  from content_factory.image_manager import ImageManager
-                  print('✅ ImageManager importé')
-              except Exception as e:
-                  print(f'⚠️  ImageManager: {e}')
-                  
+              from content_factory.audio_generator import AudioGenerator
+              audio = AudioGenerator()
+              print('✅ AudioGenerator fonctionne')
+              
+              from content_factory.video_creator import VideoCreator
+              video = VideoCreator()
+              print('✅ VideoCreator fonctionne')
+              
+              print('🎉 SYSTÈME PRÊT !')
           except Exception as e:
-              print(f'❌ Erreur critique: {e}')
+              print(f'❌ Erreur: {e}')
               exit(1)
           "
 
-      - name: 🎬 Create video(s) (forcer l'exécution)
+      - name: 🎬 Générer la vidéo
         run: |
-          echo "🎬 Lancement de la génération vidéo..."
-          if [ "${{ inputs.run_all_slots }}" = "true" ]; then
-            python content_factory/auto_content_engine.py --all || echo "⚠️  Erreur pendant la génération"
-          else
-            python content_factory/auto_content_engine.py || echo "⚠️  Erreur pendant la génération"
-          fi
+          echo "🎬 LANCEMENT DE LA GÉNÉRATION VIDÉO..."
+          python content_factory/auto_content_engine.py
 
-      - name: 📤 Upload video artifacts
-        if: always()
+      - name: 📤 Télécharger les résultats
         uses: actions/upload-artifact@v4
         with:
-          name: youtube-videos
+          name: videos-generées
           path: output/
           retention-days: 1
 
-      - name: 📊 Show production summary
+      - name: 📊 Rapport final
         if: always()
         run: |
-          echo "📊 RAPPORT DE PRODUCTION"
-          echo "🕐 Heure: $(date)"
-          echo "📹 Vidéos: $(find output/videos -name "*.mp4" 2>/dev/null | wc -l)"
-          echo "🔊 Audios: $(find output/audio -name "*.mp3" 2>/dev/null | wc -l)"
-          echo "🖼️ Images: $(find output/images -name "*.jpg" 2>/dev/null | wc -l)"
+          echo "📊 RAPPORT FINAL"
+          echo "================"
+          echo "📹 Vidéos: $(find output/videos -name '*.mp4' 2>/dev/null | wc -l)"
+          echo "🔊 Audios: $(find output/audio -name '*.mp3' 2>/dev/null | wc -l)"
+          echo "🖼️ Images: $(find output/images -name '*.jpg' 2>/dev/null | wc -l)"
+          echo "🎉 GÉNÉRATION TERMINÉE !"

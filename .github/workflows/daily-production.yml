@@ -1,4 +1,4 @@
-name: 🚀 Génération Vidéo Automatisée
+Name: 🚀 Génération Vidéo Automatisée
 
 on:
   workflow_dispatch:
@@ -48,6 +48,7 @@ jobs:
       - name: 📁 Création de l'arborescence
         run: |
           mkdir -p output/{videos,audio,images,logs}
+          mkdir -p scripts # Ajout pour le nouveau script
           echo "✅ Structure de dossiers créée"
       
       # ÉTAPE 6: Vérification des fichiers existants
@@ -58,7 +59,7 @@ jobs:
           ls -la content_factory/
           echo " "
           
-          # Test des imports Python
+          # Test des imports Python (Syntaxe correcte car simple)
           python3 -c "
 try:
     from content_factory.image_manager import ImageManager
@@ -74,39 +75,9 @@ except Exception as e:
           echo "✅ Tous les composants sont opérationnels"
 
       # ÉTAPE 7: Désactivation YouTube Uploader si nécessaire
-      - name: 🚫 Désactivation YouTube Uploader
-        run: |
-          echo "🔧 Désactivation temporaire de YouTube Uploader..."
-          python3 -c "
-import re
-
-try:
-    with open('content_factory/auto_content_engine.py', 'r') as f:
-        content = f.read()
-    
-    # Désactiver les appels à YouTubeUploader
-    new_content = re.sub(
-        r'YouTubeUploader\(\)', 
-        '# YouTubeUploader()  # Désactivé temporairement', 
-        content
-    )
-    
-    # Désactiver l'import si présent
-    new_content = re.sub(
-        r'^from youtube_uploader import YouTubeUploader',
-        '# from youtube_uploader import YouTubeUploader  # Désactivé',
-        new_content,
-        flags=re.MULTILINE
-    )
-    
-    with open('content_factory/auto_content_engine.py', 'w') as f:
-        f.write(new_content)
-    
-    print('✅ YouTube Uploader désactivé')
-    
-except Exception as e:
-    print(f'⚠️ Impossible de désactiver YouTube Uploader: {e}')
-          "
+      # CORRECTION APPLIQUÉE ICI : Appel direct du script Python
+      - name: 🚫 Désactivation YouTube Uploader via script
+        run: python3 scripts/disable_youtube_uploader.py
 
       # ÉTAPE 8: Configuration de l'environnement
       - name: 🔑 Configuration des variables

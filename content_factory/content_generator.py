@@ -1,194 +1,174 @@
-# content_factory/content_generator_daily.py
+# content_factory/content_generator.py (Mise à jour avec 10+ sujets par thème)
 import random
+import sys
 from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
+
+# --- DONNÉES STATIQUES DU CONTENU FILTRÉ et ÉLARGI ---
+
+BASE_TOPICS = {
+    'science': [
+        "L'ADN et la Génétique : Les Bases",
+        "Les Mystères des Trous Noirs et des Galaxies", 
+        "Les Secrets de la Lumière et de l'Optique",
+        "La Physique Quantique : Introduction",
+        "La Création des Éléments Chimiques",
+        "La Vie Extraterrestre : Recherche Scientifique",
+        "Le Temps et l'Espace : La Théorie de la Relativité",
+        "L'Origine de l'Univers et le Big Bang",
+        "Les Superconducteurs et leurs Applications", # Ajout 1
+        "La Cristallographie et la Structure des Solides", # Ajout 2
+    ],
+    'technologie': [
+        "L'Intelligence Artificielle et le Machine Learning",
+        "Les Innovations des Ordinateurs Quantiques", 
+        "La Robotique et les Systèmes Autonomes",
+        "La Réalité Virtuelle dans l'Éducation",
+        "La 6G et le Futur des Réseaux Mobiles",
+        "L'Éthique de la Technologie et de l'AI",
+        "L'Impression 3D Industrielle",
+        "Le Métavers et ses Applications Non Sociales",
+        "Les Nanotechnologies et les Nano-Matériaux", # Ajout 1
+        "La Cryptographie Post-Quantique", # Ajout 2
+    ],
+    'environnement': [
+        "Les Énergies Renouvelables : Solaire et Éolien",
+        "La Biodiversité et les Écosystèmes Terrestres",
+        "L'Hydrologie et la Gestion de l'Eau",
+        "La Géothermie : L'Énergie de la Terre",
+        "La Reforestation par la Technologie",
+        "Les Techniques de Dépollution des Océans", 
+        "L'Agriculture Verticale et la Permaculture",
+        "La Science des Matériaux Durables",
+        "Le Stockage d'Énergie (Batteries et Piles à Combustible)", # Ajout 1
+        "La Modélisation Climatique : Les Bases", # Ajout 2
+    ],
+    'espace': [
+        "La Colonisation de Mars : Défis Techniques",
+        "Les Prochaines Missions Spatiales (Artemis)",
+        "Les Exoplanètes et la Zone Habitable",
+        "Le Fonctionnement de la Station Spatiale Internationale",
+        "Les Satellites et l'Observation Terrestre",
+        "L'Histoire des Fusées et des Lanceurs",
+        "Les Géantes Gazeuses : Jupiter et Saturne",
+        "Les Astéroïdes et les Comètes : Composition",
+        "Le Télescope Spatial James Webb (JWST) : Découvertes", # Ajout 1
+        "La Physique des Mouvements Stellaires", # Ajout 2
+    ],
+    'sante_bienetre': [
+        "Les Bases de la Nutrition Scientifique",
+        "Le Fonctionnement du Sommeil et du Repos",
+        "La Neuroplasticité et l'Apprentissage",
+        "Les Bienfaits de l'Activité Physique sur le Cerveau",
+        "Le Rôle du Microbiote Intestinal sur le Bien-être",
+        "La Psychologie Positive et la Science du Bonheur",
+        "La Prévention et les Bases de l'Immunologie",
+        "Les Dernières Techniques d'Imagerie Médicale",
+        "L'Horloge Biologique (Rythmes Circadiens)", # Ajout 1
+        "L'Impact de la Méditation sur le Cerveau", # Ajout 2
+    ]
+}
+
+# Modèles pour les variations de titre et d'angle (pas de changement nécessaire, ils gèrent les nouvelles catégories)
+TITLE_TEMPLATES = {
+    'prefixes': {
+        'science': ["Découverte : ", "Science : ", "Innovation : ", "Révolution : "],
+        'technologie': ["Tech : ", "Future : ", "Digital : ", "Innovation : "],
+        'environnement': ["Écolo : ", "Durable : ", "Nature : ", "Planète : "],
+        'espace': ["Espace : ", "Cosmos : ", "Mission : ", "Découverte : "],
+        'sante_bienetre': ["Santé : ", "Bien-être : ", "Cerveau : ", "Science : "]
+    },
+    'suffixes': {
+        'science': [" - La Vérité", " Révélé", " - Les Secrets", " Expliqué"],
+        'technologie': [" - Le Futur", " Révolution", " - Les Tendances", " Moderne"],
+        'environnement': [" - Solution", " - Avenir", " - Défi", " - Espoir"],
+        'espace': [" - Les Secrets", " - Le Voyage", " - La Nouvelle Ère", " Expliqué"],
+        'sante_bienetre': [" - Avancée", " - Solution", " - Les Bases", " Scientifique"],
+    },
+    'angles': {
+        'science': ["approche éducative et pédagogique", "angle découverte et innovation", "perspective historique et évolution", "focus applications pratiques"],
+        'technologie': ["impact sur la société moderne", "innovations récentes et tendances", "comparaison technologies anciennes/nouvelles", "perspective futuriste"],
+        'environnement': ["solutions concrètes et actions", "impact sur la biodiversité", "innovations durables", "implication citoyenne"],
+        'espace': ["défis techniques et ingénierie", "découvertes astronomiques récentes", "perspective scientifique et hypothèses", "focus sur l'exploration humaine"],
+        'sante_bienetre': ["bases scientifiques et études", "conseils pratiques pour le quotidien", "mécanismes biologiques et chimiques", "perspective d'amélioration de la qualité de vie"],
+    }
+}
+
 
 class ContentGenerator:
-    def __init__(self):
-        self.base_topics = self.load_base_topics()
-        self.daily_variations = self.generate_daily_variations()
+    def __init__(self, base_topics: Dict = BASE_TOPICS):
+        self.base_topics = base_topics
+        self.daily_variations = self._generate_daily_variations()
     
-    def load_base_topics(self):
-        """Sujets de base organisés par catégories"""
-        return {
-            'science': [
-                "L'ADN et la Génétique Moderne",
-                "Les Mystères des Trous Noirs", 
-                "L'Intelligence Artificielle Révolutionnaire",
-                "Les Secrets du Cerveau Humain",
-                "La Physique Quantique Expliquée",
-                "Les Océans et le Changement Climatique",
-                "Les Virus et le Système Immunitaire",
-                "L'Énergie Nucléaire du Futur",
-                "La Conquête Spatiale Moderne",
-                "Les Superpouvoirs des Animaux"
-            ],
-            'technologie': [
-                "La Révolution de l'IA Générative",
-                "Les Ordinateurs Quantiques", 
-                "La Réalité Virtuelle et Augmentée",
-                "Les Véhicules Autonomes",
-                "L'Internet des Objets Intelligents",
-                "La Blockchain et les Cryptomonnaies",
-                "La 5G et les Réseaux du Futur",
-                "L'Impression 3D Médicale",
-                "Les Smart Cities Intelligentes",
-                "La Cybersécurité Moderne"
-            ],
-            'environnement': [
-                "Les Énergies Renouvelables Innovantes",
-                "La Biodiversité en Danger",
-                "L'Agriculture du Futur",
-                "La Gestion des Déchets Intelligente",
-                "L'Eau : Ressource Précieuse",
-                "Les Forêts et la Reforestation", 
-                "L'Économie Circulaire",
-                "Les Villes Vertes de Demain",
-                "L'Alimentation Durable",
-                "La Protection des Océans"
-            ],
-            'sante': [
-                "Les Avancées Médicales Récents",
-                "La Médecine Personnalisée",
-                "Les Biotechnologies Révolutionnaires",
-                "La Lutte contre le Cancer",
-                "Le Microbiote Intestinal",
-                "Les Thérapies Géniques",
-                "La Longévité et le Vieillissement",
-                "La Santé Mentale Moderne",
-                "Les Vaccins du Futur",
-                "La Chirurgie Robotique"
-            ]
-        }
+    # ... Les autres méthodes (get_daily_seed, _generate_daily_variations, _generate_title_variations, generate_script, _get_script_detail, generate_content) restent les mêmes ...
     
-    def get_daily_seed(self):
-        """Génère une seed unique pour chaque jour"""
-        today = datetime.now().strftime("%Y%m%d")
-        return int(today)
+    # NOTE: Pour garder le code complet ici, les méthodes omises devraient être celles de la version précédente.
     
-    def get_video_slot_seed(self, slot_number):
-        """Génère une seed unique pour chaque créneau vidéo"""
-        today_seed = self.get_daily_seed()
-        return today_seed + slot_number
-    
-    def generate_daily_variations(self):
-        """Génère les variations quotidiennes"""
+    @staticmethod
+    def get_daily_seed() -> int:
+        return int(datetime.now().strftime("%Y%m%d"))
+        
+    def _generate_daily_variations(self) -> Dict[int, Dict[str, Any]]:
         seed = self.get_daily_seed()
         random.seed(seed)
-        
         variations = {}
         categories = list(self.base_topics.keys())
+        categories_for_day = random.sample(categories, min(4, len(categories)))
         
-        # Mélanger l'ordre des catégories pour la journée
-        shuffled_categories = random.sample(categories, len(categories))
-        
-        for i, category in enumerate(shuffled_categories):
-            # Sélectionner un sujet aléatoire dans la catégorie
+        for i, category in enumerate(categories_for_day):
             topic = random.choice(self.base_topics[category])
-            
-            # Générer des variations de titre
-            title_variations = self.generate_title_variations(topic, category)
-            
             variations[i] = {
                 'category': category,
                 'base_topic': topic,
-                'titles': title_variations,
-                'angle': self.generate_angle(category)
+                'titles': self._generate_title_variations(topic, category),
+                'angle': random.choice(TITLE_TEMPLATES['angles'].get(category, ["angle informatif"])),
+                'daily_seed': seed
             }
-        
         return variations
     
-    def generate_title_variations(self, base_topic, category):
-        """Génère des variations de titre pour un sujet"""
-        prefixes = {
-            'science': ["Découverte : ", "Science : ", "Innovation : ", "Révolution : "],
-            'technologie': ["Tech : ", "Future : ", "Digital : ", "Innovation : "],
-            'environnement': ["Écolo : ", "Durable : ", "Nature : ", "Planète : "],
-            'sante': ["Santé : ", "Médecine : ", "Wellness : ", "Innovation : "]
-        }
-        
-        suffixes = {
-            'science': [" - La Vérité", " Révélé", " - Les Secrets", " Expliqué"],
-            'technologie': [" - Le Futur", " Révolution", " - Les Tendances", " Moderne"],
-            'environnement': [" - Solution", " - Avenir", " - Défi", " - Espoir"],
-            'sante': [" - Révolution", " - Découverte", " - Avancée", " - Solution"]
-        }
-        
-        category_prefixes = prefixes.get(category, ["", "", "", ""])
-        category_suffixes = suffixes.get(category, ["", "", "", ""])
-        
+    def _generate_title_variations(self, base_topic: str, category: str) -> List[str]:
+        prefixes = TITLE_TEMPLATES['prefixes'].get(category, [""])
+        suffixes = TITLE_TEMPLATES['suffixes'].get(category, [""])
         variations = []
-        for i in range(4):
-            prefix = random.choice(category_prefixes)
-            suffix = random.choice(category_suffixes)
-            variations.append(f"{prefix}{base_topic}{suffix}")
-        
+        for _ in range(4):
+            prefix = random.choice(prefixes) if prefixes else ""
+            suffix = random.choice(suffixes) if suffixes else ""
+            variations.append(f"{prefix}{base_topic}{suffix}".strip())
         return variations
     
-    def generate_angle(self, category):
-        """Génère un angle d'approche pour le contenu"""
-        angles = {
-            'science': [
-                "approche éducative et pédagogique",
-                "angle découverte et innovation", 
-                "perspective historique et évolution",
-                "focus applications pratiques"
-            ],
-            'technologie': [
-                "impact sur la société moderne",
-                "innovations récentes et tendances",
-                "comparaison technologies anciennes/nouvelles",
-                "perspective futuriste"
-            ],
-            'environnement': [
-                "solutions concrètes et actions",
-                "impact sur la biodiversité",
-                "innovations durables",
-                "implication citoyenne"
-            ],
-            'sante': [
-                "avancées médicales récentes",
-                "conseils pratiques santé",
-                "recherche scientifique",
-                "témoignages et cas réels"
-            ]
+    def _get_script_detail(self, category: str, detail_type: str) -> str:
+        # Structure de données centralisée pour tous les détails de script (Mise à jour pour les 5 catégories)
+        DETAILS_MAP = {
+            'science': {
+                'details': "Les dernières études confirment l'importance de ces découvertes.",
+                'impacts': "Ces avancées pourraient bien révolutionner notre quotidien dans les prochaines années.",
+            },
+            'technologie': {
+                'advancements': "Les processeurs atteignent des performances exceptionnelles.",
+                'future': "L'intelligence artificielle va transformer tous les secteurs.",
+            },
+            'environnement': {
+                'details': "Les données scientifiques récentes montrent l'urgence d'agir pour préserver notre écosystème.",
+                'impacts': "Ces solutions pourraient sauver des écosystèmes entiers.",
+            },
+            'espace': {
+                'details': "L'analyse des données satellites révèle de nouveaux faits cruciaux sur cette région.",
+                'impacts': "L'exploration de l'espace nous apporte des innovations directement applicables sur Terre.",
+            },
+            'sante_bienetre': {
+                'details': "La recherche fondamentale ouvre de nouvelles voies thérapeutiques et de bien-être.",
+                'impacts': "Ces progrès améliorent la qualité de vie et la longévité de millions de personnes.",
+            }
         }
-        return random.choice(angles.get(category, ["angle informatif"]))
-    
-    def generate_script(self, base_topic, category, angle, slot_number):
-        """Génère un script basé sur le sujet, catégorie et angle"""
+        return DETAILS_MAP.get(category, {}).get(detail_type, "Des recherches continuent de progresser à un rythme accéléré.")
         
-        # Introduction variée selon le créneau
+    def generate_script(self, base_topic: str, category: str, angle: str, slot_number: int) -> str:
         introductions = [
-            f"Aujourd'hui, explorons ensemble {base_topic.lower()}.",
-            f"Plongeons dans l'univers fascinant de {base_topic.lower()}.",
-            f"Découvrons les secrets de {base_topic.lower()}.",
-            f"Partons à la découverte de {base_topic.lower()}."
+            f"Aujourd'hui, explorons ensemble **{base_topic.lower()}**.",
+            f"Plongeons dans l'univers fascinant de **{base_topic.lower()}**.",
+            f"Découvrons les secrets de **{base_topic.lower()}**.",
+            f"Partons à la découverte de **{base_topic.lower()}**."
         ]
-        
-        # Contenu principal avec variations
-        content_templates = {
-            'science': [
-                f"La science derrière {base_topic.lower()} révèle des mécanismes extraordinaires. Les recherches récentes ont mis en lumière des aspects surprenants qui révolutionnent notre compréhension. {self.get_science_details(category)}",
-                f"Les découvertes dans le domaine de {base_topic.lower()} transforment notre vision du monde. {self.get_science_impact(category)}"
-            ],
-            'technologie': [
-                f"La technologie liée à {base_topic.lower()} évolue à une vitesse impressionnante. {self.get_tech_advancements(category)}",
-                f"L'innovation dans {base_topic.lower()} ouvre des perspectives incroyables. {self.get_tech_future(category)}"
-            ],
-            'environnement': [
-                f"L'enjeu de {base_topic.lower()} est crucial pour notre avenir. {self.get_environment_solutions(category)}",
-                f"La protection de {base_topic.lower()} nécessite une action collective. {self.get_environment_actions(category)}"
-            ],
-            'sante': [
-                f"Les avancées concernant {base_topic.lower()} transforment la médecine. {self.get_health_breakthroughs(category)}",
-                f"La compréhension de {base_topic.lower()} améliore notre qualité de vie. {self.get_health_benefits(category)}"
-            ]
-        }
-        
-        introduction = introductions[slot_number % len(introductions)]
-        main_content = random.choice(content_templates.get(category, [f"Le sujet de {base_topic.lower()} offre des perspectives fascinantes."]))
-        
-        # Conclusion adaptée
         conclusions = [
             "Cette exploration nous montre l'importance de continuer à rechercher et innover.",
             "Le futur s'annonce passionnant avec ces avancées remarquables.",
@@ -196,104 +176,54 @@ class ContentGenerator:
             "Chaque progrès nous rapproche d'une compréhension plus complète de notre univers."
         ]
         
+        main_content_templates = {
+            'science': [
+                f"La science derrière révèle des mécanismes extraordinaires. ({self._get_script_detail('science', 'details')})",
+                f"Les découvertes dans ce domaine transforment notre vision du monde. ({self._get_script_detail('science', 'impacts')})"
+            ],
+            'technologie': [
+                f"La technologie évolue à une vitesse impressionnante. ({self._get_script_detail('technologie', 'details')})",
+                f"L'innovation ouvre des perspectives incroyables. ({self._get_script_detail('technologie', 'impacts')})"
+            ],
+            'environnement': [
+                f"L'enjeu de l'environnement est crucial pour notre avenir. ({self._get_script_detail('environnement', 'details')})",
+                f"La protection de notre planète nécessite une action collective. ({self._get_script_detail('environnement', 'impacts')})"
+            ],
+            'espace': [
+                f"Ce chapitre de l'exploration spatiale est riche en défis. ({self._get_script_detail('espace', 'details')})",
+                f"L'héritage de ces missions continue de façonner notre savoir. ({self._get_script_detail('espace', 'impacts')})"
+            ],
+            'sante_bienetre': [
+                f"Les bases scientifiques du bien-être sont primordiales. ({self._get_script_detail('sante_bienetre', 'details')})",
+                f"L'amélioration de notre qualité de vie passe par ces mécanismes. ({self._get_script_detail('sante_bienetre', 'impacts')})"
+            ],
+        }
+        
+        main_content = random.choice(main_content_templates.get(category, 
+                                                               [f"Le sujet de {base_topic.lower()} offre des perspectives fascinantes et est traité sous l'angle de **{angle}**."]))
+        
+        main_content = main_content.replace('ce domaine', base_topic.lower()).replace('La science derrière', f'La science derrière {base_topic.lower()}')
+
+        introduction = introductions[slot_number % len(introductions)]
         conclusion = conclusions[slot_number % len(conclusions)]
         
-        # Assembler le script
         script = f"{introduction}\n\n{main_content}\n\n{conclusion}"
         
         return script
-    
-    def get_science_details(self, category):
-        """Détails scientifiques spécifiques"""
-        details = {
-            'science': "Les dernières études publiées dans des revues prestigieuses confirment l'importance de ces découvertes.",
-            'technologie': "L'ingénierie de pointe permet des applications qui semblaient impossibles il y a quelques années.",
-            'environnement': "Les données scientifiques récentes montrent l'urgence d'agir pour préserver notre écosystème.",
-            'sante': "Les essais cliniques démontrent une efficacité prometteuse pour les traitements futurs."
-        }
-        return details.get(category, "Les recherches continuent de progresser à un rythme accéléré.")
-    
-    def get_science_impact(self, category):
-        """Impact des découvertes scientifiques"""
-        impacts = {
-            'science': "Ces avancées pourraient bien révolutionner notre quotidien dans les prochaines années.",
-            'technologie': "L'impact sur l'industrie et la société sera considérable.",
-            'environnement': "Ces solutions pourraient sauver des écosystèmes entiers.",
-            'sante': "Ces progrès pourraient sauver des millions de vies à travers le monde."
-        }
-        return impacts.get(category, "L'impact de ces découvertes dépasse nos attentes.")
-    
-    def get_tech_advancements(self, category):
-        """Avancées technologiques"""
-        advancements = {
-            'science': "Les instruments de mesure deviennent de plus en plus précis.",
-            'technologie': "Les processeurs atteignent des performances exceptionnelles.",
-            'environnement': "Les capteurs permettent une surveillance en temps réel.",
-            'sante': "Les dispositifs médicaux gagnent en précision et fiabilité."
-        }
-        return advancements.get(category, "L'innovation ouvre des possibilités insoupçonnées.")
-    
-    def get_tech_future(self, category):
-        """Perspective future de la technologie"""
-        futures = {
-            'science': "Les laboratoires du futur seront entièrement automatisés.",
-            'technologie': "L'intelligence artificielle va transformer tous les secteurs.",
-            'environnement': "Les technologies vertes deviendront la norme.",
-            'sante': "La médecine personnalisée sera accessible à tous."
-        }
-        return futures.get(category, "Le futur s'annonce passionnant avec ces innovations.")
-    
-    def get_environment_solutions(self, category):
-        """Solutions environnementales"""
-        solutions = {
-            'science': "La recherche développe des solutions basées sur la nature.",
-            'technologie': "Les technologies propres deviennent plus efficaces.",
-            'environnement': "Les initiatives locales montrent des résultats prometteurs.",
-            'sante': "Un environnement sain améliore directement la santé publique."
-        }
-        return solutions.get(category, "Des solutions existent et montrent leur efficacité.")
-    
-    def get_environment_actions(self, category):
-        """Actions environnementales"""
-        actions = {
-            'science': "La science guide nos actions pour un impact maximal.",
-            'technologie': "La tech nous donne les outils pour agir efficacement.",
-            'environnement': "Chaque geste compte dans cette démarche collective.",
-            'sante': "Protéger l'environnement, c'est protéger notre santé."
-        }
-        return actions.get(category, "L'action collective peut faire la différence.")
-    
-    def get_health_breakthroughs(self, category):
-        """Percées médicales"""
-        breakthroughs = {
-            'science': "La recherche fondamentale ouvre de nouvelles voies thérapeutiques.",
-            'technologie': "Les dispositifs médicaux révolutionnent les diagnostics.",
-            'environnement': "Un environnement sain réduit les maladies chroniques.",
-            'sante': "Les traitements deviennent plus ciblés et moins invasifs."
-        }
-        return breakthroughs.get(category, "La médecine progresse à un rythme impressionnant.")
-    
-    def get_health_benefits(self, category):
-        """Bénéfices pour la santé"""
-        benefits = {
-            'science': "La compréhension des mécanismes biologiques s'améliore.",
-            'technologie': "Le suivi médical devient plus accessible et précis.",
-            'environnement': "La qualité de l'air et de l'eau influence directement la santé.",
-            'sante': "La prévention permet d'éviter de nombreuses pathologies."
-        }
-        return benefits.get(category, "Ces avancées améliorent la qualité de vie de millions de personnes.")
-    
-    def generate_content(self, slot_number=0):
-        """Génère le contenu pour un créneau spécifique"""
-        # Réinitialiser les variations pour le jour
-        self.daily_variations = self.generate_daily_variations()
-        
-        # Sélectionner la variation pour ce créneau
-        variation_key = slot_number % len(self.daily_variations)
+
+    def generate_content(self, slot_number: int = 0) -> Dict[str, Any]:
+        if not self.daily_variations:
+            self.daily_variations = self._generate_daily_variations()
+            
+        num_variations = len(self.daily_variations)
+        if num_variations == 0:
+            raise RuntimeError("Aucun sujet n'a pu être généré à partir des thèmes de base.")
+
+        variation_key = slot_number % num_variations
         variation = self.daily_variations[variation_key]
         
-        # Générer le contenu final
         title = variation['titles'][slot_number % len(variation['titles'])]
+        
         script = self.generate_script(
             variation['base_topic'], 
             variation['category'], 
@@ -306,17 +236,34 @@ class ContentGenerator:
             'script': script,
             'category': variation['category'],
             'slot_number': slot_number,
-            'daily_seed': self.get_daily_seed()
+            'daily_seed': variation['daily_seed']
         }
 
-# Fonction utilitaire pour générer 4 contenus
-def generate_daily_contents():
-    """Génère les 4 contenus de la journée"""
-    generator = ContentGenerator()
-    daily_contents = []
-    
-    for slot in range(4):
-        content = generator.generate_content(slot)
-        daily_contents.append(content)
-    
-    return daily_contents
+# --- Fonction d'Export ---
+def generate_daily_contents() -> List[Dict[str, Any]]:
+    """Génère les 4 contenus de la journée."""
+    try:
+        generator = ContentGenerator()
+        daily_contents = [generator.generate_content(slot) for slot in range(4)]
+        return daily_contents
+    except Exception as e:
+        print(f"❌ Erreur critique dans generate_daily_contents: {e}", file=sys.stderr)
+        return []
+
+# --- Bloc de Test ---
+if __name__ == "__main__":
+    print("🧪 Test ContentGenerator...")
+    try:
+        contents = generate_daily_contents()
+        if not contents:
+            print("❌ Test échoué: Aucune donnée générée.")
+            sys.exit(1)
+        print(f"✅ {len(contents)} Contenus générés pour la journée ({contents[0]['daily_seed']}).")
+        for content in contents:
+            print("-" * 50)
+            print(f"Créneau {content['slot_number'] + 1} | Catégorie: {content['category'].upper()}")
+            print(f"Titre: {content['title']}")
+            print(f"Script (début): {content['script'][:150].replace('\n', ' ')}...")
+    except Exception as e:
+        print(f"❌ Test échoué avec erreur: {e}")
+        sys.exit(1)

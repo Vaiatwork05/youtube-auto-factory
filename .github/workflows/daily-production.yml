@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       run_all_slots:
-        description: 'Créer les 4 vidéos de la journée'
+        description: "Créer les 4 vidéos de la journée"
         required: false
         default: false
         type: boolean
   schedule:
-    - cron: '0 6 * * *'   # 8h CEST
-    - cron: '0 10 * * *'  # 12h CEST
-    - cron: '0 14 * * *'  # 16h CEST
-    - cron: '0 18 * * *'  # 20h CEST
+    - cron: "0 6 * * *"   # 8h CEST
+    - cron: "0 10 * * *"  # 12h CEST
+    - cron: "0 14 * * *"  # 16h CEST
+    - cron: "0 18 * * *"  # 20h CEST
 
 jobs:
   generate-video:
@@ -26,8 +26,8 @@ jobs:
       - name: 🐍 Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
-          cache: 'pip'
+          python-version: "3.10"
+          cache: "pip"
 
       - name: 💾 Cache system packages
         uses: actions/cache@v3
@@ -81,7 +81,7 @@ jobs:
           python -c "
           try:
               from content_factory.video_creator import VideoCreator
-              from content_factory.audio_generator import AudioGenerator  
+              from content_factory.audio_generator import AudioGenerator
               from content_factory.image_manager import ImageManager
               print('✅ Tous les modules importés avec succès')
           except Exception as e:
@@ -102,6 +102,58 @@ jobs:
         run: |
           if [ "${{ inputs.run_all_slots }}" = "true" ]; then
             echo "🕒 Début production des 4 vidéos quotidiennes..."
+            python content_factory/auto_content_engine.py --all
+          else
+            echo "🕒 Début production vidéo pour créneau actuel..."
+            python content_factory/auto_content_engine.py
+          fi
+
+      - name: 📤 Upload video artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-videos-${{ github.run_id }}
+          path: output/
+          retention-days: 1
+
+      - name: 📊 Show production summary
+        if: always()
+        run: |
+          echo "📊 RAPPORT DE PRODUCTION"
+          echo "========================"
+          echo "🕐 Heure: $(date)"
+          echo "🏃 Workflow: ${{ github.workflow }}"
+          echo "🔧 Run ID: ${{ github.run_id }}"
+          echo ""
+          echo "📹 Vidéos créées:"
+          find output/videos -name "*.mp4" -type f -exec du -h {} \; | awk '{print "   - " $2 " (" $1 ")"}'
+          echo ""
+          echo "🔊 Audios:"
+          find output/audio -name "*.mp3" -type f -exec du -h {} \; | awk '{print "   - " $2 " (" $1 ")"}'
+          echo ""
+          echo "🖼️ Images:"
+          find output/images -name "*.jpg" -type f | head -5
+          echo ""
+          echo "💾 Cache activé & optimisation réussie ✅"
+
+      - name: 🚨 Notification on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 YouTube Auto Factory - Production Failed',
+              body: `La production vidéo a échoué. Veuillez vérifier les logs du workflow.
+
+              Détails:
+              - Workflow: ${context.workflow}
+              - Run: ${context.runId}
+              - Commit: ${context.sha}
+              - Déclencheur: ${context.eventName}
+
+              Lien vers les logs: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            })            echo "🕒 Début production des 4 vidéos quotidiennes..."
             python content_factory/auto_content_engine.py --all
           else
             echo "🕒 Début production vidéo pour créneau actuel..."

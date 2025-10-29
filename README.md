@@ -1,8 +1,3 @@
-Parfait 🙌
-Voici une version complète et claire de ton README.md prête à coller sur
-👉 https://github.com/Vaiatwork05/youtube-auto-factory/edit/main/README.md
-
-
 ---
 
 # 🎬 YouTube Auto Factory

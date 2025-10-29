@@ -1,7 +1,7 @@
 # content_factory/audio_generator.py
 import os
 import time
-from utils import clean_filename, safe_path_join, ensure_directory
+from content_factory.utils import clean_filename, safe_path_join, ensure_directory
 
 class AudioGenerator:
     def __init__(self):

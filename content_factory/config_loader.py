@@ -1,61 +1,56 @@
-# config.yaml
-# --- Configuration globale pour YouTube Auto Factory ---
+# content_factory/config_loader.py
 
-# --- CHEMINS & ORGANISATION ---
-PATHS:
-  OUTPUT_ROOT: "output"
-  VIDEO_DIR: "videos"
-  AUDIO_DIR: "audio"
-  IMAGE_DIR: "images"
-  LOG_DIR: "logs"
+import yaml
+import os
+import sys
 
-# --- FLUX DE TRAVAIL & PLANIFICATION ---
-WORKFLOW:
-  # Nombre de vidéos à produire chaque jour (doit correspondre à la CRON)
-  DAILY_SLOTS: 4
-  # Doit correspondre à l'heure UTC de la CRON. Ex: 06 (pour 08h00 CEST)
-  SLOT_HOURS_UTC: [6, 10, 14, 18] 
+# La classe utilise le modèle Singleton pour ne charger le fichier qu'une seule fois.
+class ConfigLoader:
+    _config = None
+    
+    # Constante pour le chemin du fichier config.yaml
+    # Le chemin est construit par rapport au répertoire courant du script Python.
+    _config_path = os.path.join(
+        os.path.dirname(__file__), 
+        '..', 
+        'config.yaml' # Assurez-vous que config.yaml est dans le répertoire 'app/'
+    )
 
-# --- GESTION AUDIO (AudioGenerator) ---
-AUDIO_GENERATOR:
-  # Voix Edge TTS (ex: "fr-FR-DeniseNeural")
-  DEFAULT_VOICE: "fr-FR-DeniseNeural" 
-  # Vitesse de parole (1.0 = normale; 1.1 = 10% plus rapide)
-  SPEAKING_RATE: 1.05 
+    def __init__(self):
+        # Ligne 8 (la ligne critique où l'erreur apparaissait) est maintenant ici, 
+        # elle est traitée dans un contexte de code valide (début de fonction).
+        if ConfigLoader._config is None:
+            self._load_config()
 
-# --- GESTION VIDÉO (VideoCreator) ---
-VIDEO_CREATOR:
-  # Résolution de la vidéo [Largeur, Hauteur] (720p par défaut)
-  RESOLUTION: [1280, 720] 
-  # Fréquence d'images par seconde
-  FPS: 24
-  # Bitrate vidéo pour la qualité (5 Mbps)
-  BITRATE: "5000k"
-  # Nombre d'images à utiliser pour toute la vidéo (minimum 2)
-  IMAGES_PER_VIDEO: 10
-  # Durée de la vidéo de secours silencieuse (en secondes)
-  FALLBACK_DURATION_S: 15
+    def _load_config(self):
+        """Charge le fichier YAML depuis le chemin spécifié."""
+        try:
+            # Tente d'ouvrir et de lire le fichier
+            with open(self._config_path, 'r', encoding='utf-8') as f:
+                ConfigLoader._config = yaml.safe_load(f)
+                
+            if ConfigLoader._config is None:
+                # Gère le cas où le fichier est vide
+                ConfigLoader._config = {}
+                
+        except FileNotFoundError:
+            print(f"❌ Erreur: Le fichier de configuration 'config.yaml' est introuvable au chemin : {self._config_path}", file=sys.stderr)
+            sys.exit(1) # Arrêt du programme si la configuration n'est pas trouvée
+        except yaml.YAMLError as e:
+            # Gère les erreurs de syntaxe dans le fichier YAML (s'il est mal formaté)
+            print(f"❌ Erreur: Le fichier 'config.yaml' est mal formaté (YAML Error: {e})", file=sys.stderr)
+            sys.exit(1)
 
-# --- GESTION DES IMAGES (ImageManager) ---
-IMAGE_MANAGER:
-  CACHE_IMAGES: True
-  CLEANUP_OLD_IMAGES: True
-  # Nombre maximum d'images à conserver dans le répertoire /output/images
-  MAX_IMAGES_TO_KEEP: 100 
-  # Note: La résolution est prise depuis VIDEO_CREATOR
+    def get_config(self):
+        """Retourne le dictionnaire de configuration chargé."""
+        return ConfigLoader._config
 
-# --- GESTION YOUTUBE (YouTubeUploader) ---
-YOUTUBE_UPLOADER:
-  # Tags génériques appliqués à TOUTES les vidéos
-  GLOBAL_TAGS: ["science", "technologie", "innovation", "faits", "Vaiatwork05"]
-  # Visibilité par défaut: 'private', 'public', 'unlisted'
-  VISIBILITY: "unlisted"
-  # Catégorie YouTube ID (ex: Science & Technologie = 28)
-  CATEGORY_ID: 28 
-
-# --- SECRETS & CLÉS D'API ---
-SECRETS:
-  # Doit être récupéré de votre tableau de bord Unsplash (voir réponse précédente)
-  UNSPLASH_API_KEY: ""
-  # Clé nécessaire pour l'authentification OAuth2 (doit être configurée via .env ou Secrets)
-  YOUTUBE_CLIENT_SECRET: "" 
+# --- Bloc de Test ---
+if __name__ == "__main__":
+    print("🧪 Test ConfigLoader...")
+    try:
+        config = ConfigLoader().get_config()
+        print("✅ ConfigLoader chargé avec succès.")
+        print(f"  -> Nombre de slots quotidiens: {config.get('WORKFLOW', {}).get('DAILY_SLOTS')}")
+    except Exception as e:
+        print(f"❌ Test échoué avec erreur: {e}", file=sys.stderr)

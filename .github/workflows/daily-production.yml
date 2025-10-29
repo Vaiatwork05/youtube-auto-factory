@@ -1,10 +1,19 @@
 # .github/workflows/daily-production.yml
-# Workflow final optimisé (Utilisation de Conteneur pour la stabilité)
+# Workflow final optimisé pour la production quotidienne.
 
-name: 🚀 Production - Lancement Quotidien (Optimisé)
+name: 🚀 Production - Lancement Quotidien du Moteur
 
-# Événement de lancement manuel avec mode Debug
+# ===============================================
+# DÉCLENCHEURS
+# ===============================================
 on:
+  # 1. Planification Quotidienne (ex: minuit UTC)
+  schedule:
+    # Lance le workflow tous les jours à 00:00 UTC
+    # Ajustez l'heure selon votre fuseau horaire et votre premier créneau de publication
+    - cron: '0 0 * * *' 
+  
+  # 2. Lancement Manuel avec mode Debug
   workflow_dispatch:
     inputs:
       debug_mode:
@@ -25,81 +34,74 @@ jobs:
       
     runs-on: ubuntu-latest
     
-    # Variables d'environnement globales pour le job
+    # ===============================================
+    # VARIABLES D'ENVIRONNEMENT GLOBALES
+    # ===============================================
     env:
-      DEBUG_MODE: ${{ github.event.inputs.debug_mode || 'false' }}
+      # DEBUG_MODE lu depuis l'input manuel ou 'false' par défaut pour la planification
+      DEBUG_MODE: ${{ github.event.inputs.debug_mode || 'false' }} 
       ENGINE_SCRIPT: 'content_factory/auto_content_engine.py'
-      DISABLE_SCRIPT: 'scripts/disable_youtube_uploader.py'
-      OUTPUT_DIR: './output_results/'
+      # Pas besoin de DISABLE_SCRIPT ici si l'upload est toujours requis en PROD
+      OUTPUT_ROOT: 'output' # Correspond à la configuration dans config.yaml
+      
+      # 🔑 INJECTION DES SECRETS DE PRODUCTION
+      # Ces variables sont lues par le config_loader.py via le placeholder ${VARIABLE_NAME}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       
     steps:
     
     # ⬇️ ÉTAPE 1: Initialisation
-    # Nécessite un chemin 'path' pour checkout dans un conteneur
     - name: ⬇️ Checkout du code
       uses: actions/checkout@v4
       with:
         path: app # Le code sera cloné dans /app dans le conteneur
     
-    # 📦 ÉTAPE 2: Installation et Mise à jour
-    # Ces commandes sont exécutées dans le conteneur Python
+    # 📦 ÉTAPE 2: Installation des dépendances
     - name: 📦 Préparation de l'environnement
-      working-directory: ./app # Définir le répertoire de travail dans le conteneur
+      working-directory: ./app # Répertoire de travail
       run: |
         echo "## Installation des dépendances Python"
-        # S'assurer que pip et setuptools sont à jour pour éviter les problèmes
         python -m pip install --upgrade pip setuptools
         
         # Installer les dépendances du projet
+        # Nécessite: moviepy, google-api-python-client, google-auth, PyYAML, etc.
         pip install -r requirements.txt
         
-    # 🚀 ÉTAPE 3: Préparation et Lancement du Moteur
-    - name: 🚀 Exécution du Workflow Python
+        # Vérification critique de PyYAML pour le ConfigLoader
+        pip show pyyaml
+        
+    # 🚀 ÉTAPE 3: Exécution du Moteur (Production)
+    - name: 🚀 Lancement du Moteur de Contenu
       working-directory: ./app
       run: |
-        echo "## Démarrage du processus de génération"
+        echo "## Démarrage du processus de génération et d'upload"
         echo "Mode Debug: ${{ env.DEBUG_MODE }}"
         
-        # 3.1. Exécution conditionnelle du script de désactivation
-        if [ -f "${{ env.DISABLE_SCRIPT }}" ]; then
-          echo "Exécution de la désactivation..."
-          python "${{ env.DISABLE_SCRIPT }}"
-        else
-          echo "⚠️ Avertissement: Script de désactivation non trouvé."
-        fi
-        
-        # 3.2. Lancement du Moteur de Contenu
-        if [ -f "${{ env.ENGINE_SCRIPT }}" ]; then
-          echo "Lancement du Moteur : ${{ env.ENGINE_SCRIPT }}"
+        # Lancement de l'Engine. Le code de sortie du script (0 ou 1) déterminera
+        # le succès ou l'échec de cette étape.
+        # On passe le mode DEBUG en variable d'environnement au script python
+        DEBUG_MODE=${{ env.DEBUG_MODE }} python "${{ env.ENGINE_SCRIPT }}"
           
-          # Exécution. Utilise 'python' car nous sommes dans un conteneur python:3.11
-          DEBUG_MODE=${{ env.DEBUG_MODE }} python "${{ env.ENGINE_SCRIPT }}"
-          
-        else
-          echo "❌ Erreur Critique : Fichier Moteur manquant (${{ env.ENGINE_SCRIPT }})."
-          exit 1
-        fi
-        
-    # 💾 ÉTAPE 4: Sauvegarde des résultats
-    # L'artefact est uploadé depuis le chemin de travail du conteneur (/app/output_results/)
+    # 💾 ÉTAPE 4: Sauvegarde des artefacts (Vidéo finale, Audio, Images)
+    # L'artefact est uploadé depuis le chemin de travail du conteneur (/app/output)
     - name: 💾 Sauvegarde des Artefacts de génération
       uses: actions/upload-artifact@v4
-      if: always() 
+      if: always() # Toujours uploader pour analyse en cas d'échec
       with:
         name: resultats-${{ github.run_id }}
-        path: app/${{ env.OUTPUT_DIR }} # Chemin ajusté au conteneur
+        path: app/${{ env.OUTPUT_ROOT }} 
         retention-days: 7 
         
-    # 🔔 ÉTAPE 5: Notifications
-    - name: 🔔 Notification du Statut
+    # 🔔 ÉTAPE 5: Notifications (avec statut clair)
+    - name: 🔔 Notification de Succès
+      if: success()
       run: |
-        if [[ $? -eq 0 ]]; then
-          echo "🎉 Le workflow s'est terminé avec succès !"
-        else
-          echo "❌ Le workflow a échoué. Veuillez consulter les logs."
-          exit 1 # Pour s'assurer que l'étape échoue si le run précédent a échoué
-        fi
-      # La condition 'always()' permet d'atteindre cette étape après l'upload, 
-      # mais nous vérifions le statut du job avec $? (ou nous pourrions utiliser 'if: success()')
-      # Pour cette version, je reviens à 'if: success()'/'if: failure()' pour plus de clarté
-      if: always()
+        echo "🎉 Le workflow de production s'est terminé avec succès !"
+        
+    - name: 🔔 Notification d'Échec
+      if: failure()
+      run: |
+        echo "❌ ÉCHEC CRITIQUE: Le workflow de production a échoué. Consulter l'artefact pour les détails."
+

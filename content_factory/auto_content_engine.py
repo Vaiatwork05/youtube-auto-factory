@@ -60,12 +60,6 @@ except ImportError as e:
 def get_current_slot(slot_hours: List[int]) -> int:
     """
     Détermine le créneau actuel basé sur l'heure.
-    
-    Args:
-        slot_hours: Liste des heures de créneaux (ex: [8, 12, 16, 20])
-        
-    Returns:
-        Index du créneau actuel (0-based)
     """
     current_hour = datetime.now().hour
     
@@ -91,16 +85,6 @@ def create_video_for_slot(
 ) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
     """
     Crée une vidéo pour un créneau spécifique.
-    
-    Args:
-        slot_number: Numéro du créneau (0-based)
-        all_daily_contents: Liste de tous les contenus générés
-        slot_hours: Heures des créneaux
-        config: Configuration de l'application
-        debug_mode: Active les logs détaillés
-        
-    Returns:
-        Tuple (chemin_vidéo, données_contenu) ou (None, None) en cas d'erreur
     """
     slot_display = slot_number + 1
     target_hour = slot_hours[slot_number]
@@ -126,8 +110,8 @@ def create_video_for_slot(
         print(f"📊 Type: {content_data.get('content_type', 'N/A')}")
         print(f"🎯 Thème: {content_data.get('theme', 'N/A')}")
         
-        # Création de la vidéo
-        creator = VideoCreator(config)
+        # CORRECTION : VideoCreator sans argument config
+        creator = VideoCreator()
         video_path = creator.create_professional_video(content_data)
         
         # Validation du résultat
@@ -162,17 +146,6 @@ def create_and_process_videos(
 ) -> List[Dict[str, Any]]:
     """
     Orchestre la création et le traitement des vidéos.
-    
-    Args:
-        mode: "production" (créneau actuel) ou "all" (tous les créneaux)
-        slot_hours: Heures des créneaux
-        slot_pause_s: Pause entre les créneaux en secondes
-        config: Configuration
-        debug_mode: Active les logs détaillés
-        force_run: Force la régénération du contenu
-        
-    Returns:
-        Liste des vidéos créées avec succès
     """
     successful_videos = []
     
@@ -182,7 +155,8 @@ def create_and_process_videos(
     
     # 1. Génération du contenu
     try:
-        print(f"🔄 Génération en cours (force_run={force_run})...")
+        print(f"🔄 Génération en cours...")
+        # CORRECTION : generate_daily_contents sans argument force_run
         all_daily_contents = generate_daily_contents()
         
         if not all_daily_contents:
@@ -194,7 +168,7 @@ def create_and_process_videos(
         print(f"✅ {actual_slots} contenus générés sur {expected_slots} attendus")
         
         if actual_slots != expected_slots:
-            print(f"⚠️  Discrepancy: {actual_slots} contents vs {expected_slots} slots")
+            print(f"⚠️  Écart: {actual_slots} contenus vs {expected_slots} créneaux")
             
     except Exception as e:
         print(f"❌ ÉCHEC - Génération du contenu: {e}")
@@ -248,14 +222,6 @@ def handle_upload(
 ) -> bool:
     """
     Gère l'upload YouTube des vidéos.
-    
-    Args:
-        successful_videos: Liste des vidéos créées
-        mode: Mode d'exécution
-        config: Configuration
-        
-    Returns:
-        True si l'upload a réussi, False sinon
     """
     if not successful_videos:
         print("📭 Aucune vidéo à uploader")
@@ -266,14 +232,15 @@ def handle_upload(
         video_to_upload = successful_videos[0]
         print(f"📤 Upload de la première vidéo (créneau {video_to_upload['slot']})")
     else:
-        video_to_upload = successful_videos[-1]  # Dernière vidéo créée
+        video_to_upload = successful_videos[-1]
         print(f"📤 Upload de la vidéo du créneau {video_to_upload['slot']}")
     
     print(f"🎬 Titre: {video_to_upload['title']}")
     print(f"📁 Fichier: {video_to_upload['path']}")
     
     try:
-        uploader = YouTubeUploader(config)
+        # CORRECTION : YouTubeUploader sans argument config
+        uploader = YouTubeUploader()
         result = uploader.upload_video(
             video_to_upload['path'], 
             video_to_upload['content_data']
@@ -294,12 +261,6 @@ def handle_upload(
 def setup_directories(config: Dict[str, Any]) -> bool:
     """
     Crée et vérifie les répertoires nécessaires.
-    
-    Args:
-        config: Configuration de l'application
-        
-    Returns:
-        True si tous les répertoires sont prêts
     """
     print("\n📁 CONFIGURATION DES RÉPERTOIRES")
     print("-" * 40)
@@ -335,14 +296,7 @@ def setup_directories(config: Dict[str, Any]) -> bool:
 def parse_arguments() -> argparse.Namespace:
     """Parse les arguments de ligne de commande."""
     parser = argparse.ArgumentParser(
-        description="YouTube Auto Factory - Système de génération automatique de contenu",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Exemples d'utilisation:
-  python auto_content_engine.py           # Mode production (créneau actuel)
-  python auto_content_engine.py --all     # Tous les créneaux
-  python auto_content_engine.py --force-run true --all  # Force la régénération
-        """
+        description="YouTube Auto Factory - Système de génération automatique de contenu"
     )
     
     parser.add_argument(
@@ -371,31 +325,24 @@ Exemples d'utilisation:
 def main() -> bool:
     """Fonction principale du moteur de contenu."""
     
-    # Vérification des imports
     if not IMPORT_SUCCESS:
         print("❌ Impossible de démarrer - Erreur d'import des modules")
         return False
     
     try:
-        # =====================================================================
         # INITIALISATION
-        # =====================================================================
         args = parse_arguments()
         config = ConfigLoader().get_config()
         
-        # Configuration runtime
         force_run = args.force_run.lower() == 'true'
         debug_mode = args.debug or os.getenv('DEBUG_MODE', 'false').lower() == 'true'
         mode = "all" if args.all else "production"
         
-        # Paramètres de workflow
         workflow_config = config.get('WORKFLOW', {})
         slot_hours = workflow_config.get('SLOT_HOURS', [8, 12, 16, 20])
         slot_pause = workflow_config.get('SLOT_PAUSE_SECONDS', 10)
         
-        # =====================================================================
         # DÉMARRAGE
-        # =====================================================================
         print("=" * 70)
         print("🎯 YOUTUBE AUTO FACTORY - MOTEUR DE PRODUCTION")
         print("=" * 70)
@@ -406,15 +353,11 @@ def main() -> bool:
         print(f"⏰ Créneaux: {slot_hours}")
         print(f"⏱️ Pause: {slot_pause}s")
         
-        # =====================================================================
         # PRÉPARATION
-        # =====================================================================
         if not setup_directories(config):
             return False
         
-        # =====================================================================
         # CRÉATION DES VIDÉOS
-        # =====================================================================
         successful_videos = create_and_process_videos(
             mode=mode,
             slot_hours=slot_hours,
@@ -424,14 +367,10 @@ def main() -> bool:
             force_run=force_run
         )
         
-        # =====================================================================
         # UPLOAD YOUTUBE
-        # =====================================================================
         upload_success = handle_upload(successful_videos, mode, config)
         
-        # =====================================================================
         # RAPPORT FINAL
-        # =====================================================================
         print("\n" + "=" * 70)
         print("📊 RAPPORT FINAL DE PRODUCTION")
         print("=" * 70)
@@ -447,12 +386,13 @@ def main() -> bool:
             for video in successful_videos:
                 print(f"   🎬 Créneau {video['slot']}: {video['title']}")
         
-        print(f"\n🎉 {'PROCESSUS TERMINÉ AVEC SUCCÈS' if success_count > 0 else 'PROCESSUS TERMINÉ - AUCUNE VIDÉO PRODUITE'}")
+        success_message = "PROCESSUS TERMINÉ AVEC SUCCÈS" if success_count > 0 else "PROCESSUS TERMINÉ - AUCUNE VIDÉO PRODUITE"
+        print(f"\n🎉 {success_message}")
         
         return success_count > 0
         
     except KeyboardInterrupt:
-        print("\n⏹️  Processus interrompu par l'utilisateur")
+        print("\n⏹️ Processus interrompu par l'utilisateur")
         return False
         
     except Exception as e:
@@ -464,6 +404,5 @@ def main() -> bool:
 
 
 if __name__ == "__main__":
-    # Point d'entrée principal
     success = main()
     sys.exit(0 if success else 1)

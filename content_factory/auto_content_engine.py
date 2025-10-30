@@ -183,7 +183,7 @@ def create_and_process_videos(
     # 1. Génération du contenu
     try:
         print(f"🔄 Génération en cours (force_run={force_run})...")
-        all_daily_contents = generate_daily_contents(force_run=force_run)
+        all_daily_contents = generate_daily_contents()
         
         if not all_daily_contents:
             raise RuntimeError("Aucun contenu généré")

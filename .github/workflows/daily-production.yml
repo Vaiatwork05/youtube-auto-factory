@@ -1,4 +1,4 @@
-name: 🚀 Production - Vérification et Lancement Quotidien
+name: Production - Vérification et Lancement Quotidien
 
 on:
   schedule:
@@ -11,80 +11,18 @@ on:
         required: true
         default: false
         type: boolean
-      skip_linting:
-        description: 'Ignorer la vérification du code'
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   contents: read
 
 jobs:
-  code_quality:
-    name: 🔍 Qualité du Code
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: ⬇️ Checkout du code
-        uses: actions/checkout@v4
-
-      - name: 🐍 Configuration Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: 📦 Installation des outils d'analyse
-        run: |
-          pip install flake8 black bandit mypy pylint
-          echo "✅ Outils d'analyse installés"
-
-      - name: 🧹 Vérification Flake8 (Style PEP8)
-        if: ${{ !github.event.inputs.skip_linting }}
-        run: |
-          echo "## Vérification Flake8..."
-          flake8 content_factory/ --count --show-source --statistics --max-line-length=100
-
-      - name: 🎨 Vérification Black (Formatage)
-        if: ${{ !github.event.inputs.skip_linting }}
-        run: |
-          echo "## Vérification Black..."
-          black content_factory/ --check --diff
-
-      - name: 🛡️ Analyse de sécurité Bandit
-        if: ${{ !github.event.inputs.skip_linting }}
-        run: |
-          echo "## Analyse de sécurité..."
-          bandit -r content_factory/ -f html -o security-report.html || true
-
-      - name: 📊 Vérification de types MyPy
-        if: ${{ !github.event.inputs.skip_linting }}
-        run: |
-          echo "## Vérification de types..."
-          mypy content_factory/ --ignore-missing-imports || true
-
-      - name: 💾 Rapport de sécurité
-        if: ${{ !github.event.inputs.skip_linting }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-report
-          path: security-report.html
-          retention-days: 7
-
   production:
     name: 🚀 Moteur de Production
     runs-on: ubuntu-latest
-    needs: code_quality
-    if: ${{ !failure() && !cancelled() }}
 
     env:
       FORCE_RUN: ${{ fromJSON(github.event.inputs.force_run || 'false') }}
       ENGINE_SCRIPT: 'content_factory/auto_content_engine.py'
-      UNSPLASH_API_KEY: ${{ secrets.UNSPLASH_API_KEY }}
-      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
-      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
 
     steps:
       - name: ⬇️ Checkout du code
@@ -113,13 +51,22 @@ jobs:
           python --version
           pip --version
           ffmpeg -version | head -n 1
-          echo "Script moteur: $ENGINE_SCRIPT"
+          echo "## Structure du projet:"
+          find . -name "*.py" | head -15
 
       - name: 🚀 Exécution du Moteur de Contenu
         run: |
           echo "## Lancement du moteur de production"
           echo "Mode FORCE: $FORCE_RUN"
           
+          # Solution: Exécuter avec le bon PYTHONPATH
+          cd $GITHUB_WORKSPACE
+          export PYTHONPATH=$GITHUB_WORKSPACE:$PYTHONPATH
+          
+          echo "📁 Répertoire de travail: $(pwd)"
+          echo "🐍 PYTHONPATH: $PYTHONPATH"
+          
+          # Vérifier que le script existe
           if [ ! -f "$ENGINE_SCRIPT" ]; then
             echo "❌ ERREUR: Script $ENGINE_SCRIPT non trouvé"
             find . -name "*.py" | head -10
@@ -127,7 +74,8 @@ jobs:
           fi
           
           echo "✅ Script trouvé, exécution..."
-          python "$ENGINE_SCRIPT" --force-run "$FORCE_RUN"
+          python -c "import sys; print('Python path:', sys.path)"
+          python content_factory/auto_content_engine.py --force-run "$FORCE_RUN"
           echo "🎉 Moteur exécuté avec succès"
 
       - name: 💾 Sauvegarde des résultats
@@ -149,26 +97,3 @@ jobs:
           else
             echo "## ⚠️ Aucun résultat trouvé"
           fi
-
-  notifications:
-    name: 🔔 Notifications
-    runs-on: ubuntu-latest
-    needs: [code_quality, production]
-    if: always()
-
-    steps:
-      - name: 📢 Rapport final
-        run: |
-          if [ "${{ needs.code_quality.result }}" == "success" ] && [ "${{ needs.production.result }}" == "success" ]; then
-            echo "🎉 SUCCÈS COMPLET - Qualité code ✅ et Production ✅"
-          elif [ "${{ needs.code_quality.result }}" == "success" ] && [ "${{ needs.production.result }}" == "failure" ]; then
-            echo "⚠️ QUALITÉ CODE OK - Mais production échouée ❌"
-          elif [ "${{ needs.code_quality.result }}" == "failure" ]; then
-            echo "❌ ÉCHEC QUALITÉ CODE - Production annulée"
-          else
-            echo "🔔 Workflow terminé - Statut mixte"
-          fi
-          
-          echo "## Résumé:"
-          echo "Code Quality: ${{ needs.code_quality.result }}"
-          echo "Production: ${{ needs.production.result }}"

@@ -1,13 +1,14 @@
 # .github/workflows/daily-production.yml
-# Workflow final optimisé avec logs de diagnostic et mode debug.
+# Workflow optimisé pour la production avec configuration conteneur stable.
 
 name: 🚀 Production - Lancement Quotidien du Moteur
 
 # ===============================================
-# DÉCLENCHEURS
+# DÉCLENCHEURS (Triggers)
 # ===============================================
 on:
   schedule:
+    # Exécution quatre fois par jour : 6h, 10h, 14h, 18h UTC
     - cron: '0 6,10,14,18 * * *' 
   
   workflow_dispatch:
@@ -17,7 +18,6 @@ on:
         required: true
         default: 'false'
         type: boolean
-      # Ajout d'un input pour activer le Debug de l'Agent GitHub Actions
       github_debug:
         description: 'Activer les logs DEBUG de l''agent GitHub Actions (Très verbeux)'
         required: true
@@ -30,31 +30,30 @@ permissions:
 jobs:
   daily_production_job:
     
-    # ⚠️ Si le problème de conteneur persiste, décommentez cette ligne et commentez 'container:'
-    # runs-on: ubuntu-latest
+    # 1. MACHINE HÔTE : Le job s'exécute sur un runner Ubuntu (nécessaire pour lancer le conteneur).
+    runs-on: ubuntu-latest
     
+    # 2. CONTENEUR : L'ensemble des étapes s'exécuteront dans ce conteneur Docker.
     container:
       image: jrottenberg/ffmpeg:4.4-python3.11 
       
-    runs-on: ubuntu-latest
-    
     # ===============================================
-    # LOGS AVANCÉS ET VARIABLES GLOBALES
+    # VARIABLES D'ENVIRONNEMENT ET SECRETS
     # ===============================================
     env:
       FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }} 
       ENGINE_SCRIPT: 'content_factory/auto_content_engine.py'
       OUTPUT_ROOT: 'output' 
       
-      # 🔑 INJECTION DES SECRETS (Configuration des modules Python)
+      # 🔑 Injection des Secrets
       UNSPLASH_API_KEY: ${{ secrets.UNSPLASH_API_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       
-      # 🐞 ACTIVATION DES LOGS DE DEBUG GITHUB ACTIONS
-      ACTIONS_STEP_DEBUG: ${{ github.event.inputs.github_debug }} # Active le debug des étapes (très verbeux)
-      RUNNER_DEBUG: ${{ github.event.inputs.github_debug }} # Active le debug de l'agent (pour le diagnostic du conteneur)
+      # 🐞 Variables pour le diagnostic (si github_debug est 'true')
+      ACTIONS_STEP_DEBUG: ${{ github.event.inputs.github_debug }} 
+      RUNNER_DEBUG: ${{ github.event.inputs.github_debug }} 
       
     steps:
     
@@ -62,19 +61,20 @@ jobs:
     - name: ⬇️ Log: Démarrage et Checkout du code
       uses: actions/checkout@v4
       with:
-        path: app 
+        path: app # Télécharge le code dans le répertoire /app du conteneur
         
     # 📦 ÉTAPE 2: Installation des dépendances Python
     - name: 📦 Log: Préparation de l'environnement et Installation des dépendances
-      working-directory: ./app 
+      working-directory: ./app # Assure que les commandes s'exécutent dans /app
       run: |
         echo "## Démarrage de l'installation des dépendances."
         echo "Chemin de travail: $(pwd)"
         
-        # Afficher la version de Python et FFMPEG (diagnostic du conteneur)
+        # Diagnostics
         python --version
         ffmpeg -version | head -n 1 || echo "⚠️ FFMPEG non trouvé ou erreur de chemin."
         
+        # Mise à jour de pip et installation
         python -m pip install --upgrade pip setuptools
         pip install -r requirements.txt 
         
@@ -86,24 +86,22 @@ jobs:
       run: |
         echo "## Lancement du script principal"
         echo "Mode FORCÉ: ${{ env.FORCE_RUN }}"
-        echo "Vérification de l'existence du script..."
         
-        # Vérification du chemin avant l'exécution
+        # Vérification d'existence du script (Contrôle critique)
         if [ ! -f "${{ env.ENGINE_SCRIPT }}" ]; then
           echo "❌ ERREUR CRITIQUE: Le script ${{ env.ENGINE_SCRIPT }} n'existe pas dans le répertoire de travail."
-          # Afficher les fichiers du dossier pour le diagnostic
           find content_factory/ -name "*.py"
           exit 1
         fi
         
         echo "Script trouvé. Exécution..."
-        # Exécution du moteur Python avec l'argument --force-run
+        # Exécution du moteur Python
         python "${{ env.ENGINE_SCRIPT }}" --force-run ${{ env.FORCE_RUN }}
         
     # 💾 ÉTAPE 4: Sauvegarde des artefacts
     - name: 💾 Log: Sauvegarde des Artefacts
       uses: actions/upload-artifact@v4
-      if: always()
+      if: always() # S'exécute même en cas d'échec pour récupérer les logs
       with:
         name: resultats-${{ github.run_id }}
         path: app/${{ env.OUTPUT_ROOT }} 

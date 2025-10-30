@@ -24,7 +24,6 @@ jobs:
   verification:
     name: 🔍 Vérification du Système
     runs-on: ubuntu-latest
-    if: ${{ !github.event.inputs.skip_verification }}
     
     steps:
       - name: ⬇️ Checkout du code
@@ -127,7 +126,6 @@ jobs:
     name: 🚀 Moteur de Production
     runs-on: ubuntu-latest
     needs: verification
-    if: ${{ needs.verification.result == 'success' || github.event.inputs.skip_verification }}
 
     env:
       FORCE_RUN: ${{ fromJSON(github.event.inputs.force_run || 'false') }}
@@ -268,12 +266,21 @@ jobs:
           echo "Verification: ${{ needs.verification.result }}"
           echo "Production: ${{ needs.production.result }}"
           
+          # Logique de rapport améliorée
           if [ "${{ needs.verification.result }}" = "success" ] && [ "${{ needs.production.result }}" = "success" ]; then
             echo "🎉 SUCCÈS COMPLET - Système opérationnel"
           elif [ "${{ needs.verification.result }}" = "failure" ]; then
             echo "❌ ÉCHEC VÉRIFICATION - Problème de configuration"
           elif [ "${{ needs.production.result }}" = "failure" ]; then
             echo "⚠️ VÉRIFICATION OK - PRODUCTION ÉCHOUÉE"
+          elif [ "${{ needs.verification.result }}" = "skipped" ]; then
+            echo "🔧 VÉRIFICATION IGNORÉE - Vérifier les conditions"
+          elif [ "${{ needs.production.result }}" = "skipped" ]; then
+            echo "🔧 PRODUCTION IGNORÉE - Vérification a échoué ou ignorée"
           else
-            echo "🔧 STATUT INCONNU - Vérifier les logs"
+            echo "🔧 STATUT INCONNU - Vérifier les logs détaillés"
           fi
+          
+          echo "## 📋 DÉTAILS:"
+          echo "Force Run: ${{ github.event.inputs.force_run }}"
+          echo "Skip Verification: ${{ github.event.inputs.skip_verification }}"

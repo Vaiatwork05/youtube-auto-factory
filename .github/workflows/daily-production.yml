@@ -1,25 +1,18 @@
-# .github/workflows/daily-production.yml
-# Workflow optimisé pour la production avec configuration conteneur stable.
+name: Production - Lancement Quotidien du Moteur
 
-name: 🚀 Production - Lancement Quotidien du Moteur
-
-# ===============================================
-# DÉCLENCHEURS (Triggers)
-# ===============================================
 on:
   schedule:
-    # Exécution quatre fois par jour : 6h, 10h, 14h, 18h UTC
     - cron: '0 6,10,14,18 * * *'
   
   workflow_dispatch:
     inputs:
       force_run:
-        description: 'Forcer l''exécution du Slot 1 (premier créneau) pour un test immédiat.'
+        description: 'Forcer execution'
         required: true
         default: false
         type: boolean
       github_debug:
-        description: 'Activer les logs DEBUG de l''agent GitHub Actions (Très verbeux)'
+        description: 'Activer debug'
         required: true
         default: false
         type: boolean
@@ -29,89 +22,35 @@ permissions:
 
 jobs:
   daily_production_job:
-    # 1. MACHINE HÔTE : Le job s'exécute sur un runner Ubuntu (nécessaire pour lancer le conteneur).
     runs-on: ubuntu-latest
     
-    # 2. CONTENEUR : L'ensemble des étapes s'exécuteront dans ce conteneur Docker.
     container:
       image: jrottenberg/ffmpeg:4.4-python3.11
     
-    # ===============================================
-    # VARIABLES D'ENVIRONNEMENT ET SECRETS
-    # ===============================================
     env:
       FORCE_RUN: ${{ fromJSON(github.event.inputs.force_run || 'false') }}
       ENGINE_SCRIPT: 'content_factory/auto_content_engine.py'
-      OUTPUT_ROOT: 'output'
-      
-      # 🔑 Injection des Secrets
-      UNSPLASH_API_KEY: ${{ secrets.UNSPLASH_API_KEY }}
-      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
-      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-      
-      # 🐞 Variables pour le diagnostic (si github_debug est 'true')
-      ACTIONS_STEP_DEBUG: ${{ fromJSON(github.event.inputs.github_debug || 'false') }}
-      RUNNER_DEBUG: ${{ fromJSON(github.event.inputs.github_debug || 'false') }}
     
     steps:
-      # ⬇️ ÉTAPE 1: Initialisation
-      - name: ⬇️ Log: Démarrage et Checkout du code
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          path: app # Télécharge le code dans le répertoire /app du conteneur
-      
-      # 📦 ÉTAPE 2: Installation des dépendances Python
-      - name: 📦 Log: Préparation de l'environnement et Installation des dépendances
+          path: app
+
+      - name: Install dependencies
         working-directory: ./app
         run: |
-          echo "## Démarrage de l'installation des dépendances."
-          echo "Chemin de travail: $(pwd)"
-          
-          # Diagnostics
-          python --version
-          ffmpeg -version | head -n 1 || echo "⚠️ FFMPEG non trouvé ou erreur de chemin."
-          
-          # Mise à jour de pip et installation
-          python -m pip install --upgrade pip setuptools
           pip install -r requirements.txt
-          
-          echo "## Installation terminée."
-      
-      # 🚀 ÉTAPE 3: Exécution du Moteur (Production)
-      - name: 🚀 Log: Lancement du Moteur de Contenu
+
+      - name: Run engine
         working-directory: ./app
         run: |
-          echo "## Lancement du script principal"
-          echo "Mode FORCÉ: $FORCE_RUN"
-          
-          # Vérification d'existence du script (Contrôle critique)
-          if [ ! -f "$ENGINE_SCRIPT" ]; then
-            echo "❌ ERREUR CRITIQUE: Le script $ENGINE_SCRIPT n'existe pas dans le répertoire de travail."
-            find content_factory/ -name "*.py"
-            exit 1
-          fi
-          
-          echo "Script trouvé. Exécution..."
-          # Exécution du moteur Python
           python "$ENGINE_SCRIPT" --force-run "$FORCE_RUN"
-      
-      # 💾 ÉTAPE 4: Sauvegarde des artefacts
-      - name: 💾 Log: Sauvegarde des Artefacts
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: resultats-${{ github.run_id }}
-          path: app/${{ env.OUTPUT_ROOT }}
+          name: results-${{ github.run_id }}
+          path: app/output
           retention-days: 7
-      
-      # 🔔 ÉTAPE 5: Notifications
-      - name: 🔔 Notification de Succès
-        if: success()
-        run: |
-          echo "🎉 Le workflow a réussi !"
-      
-      - name: 🔔 Notification d'Échec
-        if: failure()
-        run: |
-          echo "❌ ÉCHEC CRITIQUE: Le workflow a échoué. Consulter les logs détaillés et l'artefact."

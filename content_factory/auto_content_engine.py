@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import traceback
+import argparse # (MODIFIÉ) Nouvel import
 from datetime import datetime
 from typing import Dict, Any, Tuple, List, Optional
 
@@ -12,36 +13,34 @@ from .content_generator import generate_daily_contents
 from .video_creator import VideoCreator
 from .youtube_uploader import YouTubeUploader
 from .utils import ensure_directory
-from .config_loader import ConfigLoader # NOUVEL IMPORT
+from .config_loader import ConfigLoader
 
-# Déclaration d'une variable globale pour la configuration (initialisée dans main)
-CONFIG: Optional[Dict[str, Any]] = None
+# (MODIFIÉ) La variable globale CONFIG est supprimée.
 
 def get_current_slot(slot_hours: List[int]) -> int:
     """
     Détermine le créneau actuel basé sur l'heure.
-    8h=0, 12h=1, 16h=2, 20h=3.
     """
     current_hour = datetime.now().hour
     
-    # Si l'heure est après le dernier créneau, on utilise le dernier (ex: 20:30 -> slot 3)
     if current_hour >= slot_hours[-1]:
         return len(slot_hours) - 1
         
-    # Trouver le créneau le plus proche et passé
     for i, hour in enumerate(slot_hours):
         if current_hour < hour:
-            # Si on est avant le premier créneau (8h), on prend le premier (slot 0)
             return i - 1 if i > 0 else 0
             
-    # Devrait être couvert par la première condition, mais assure la sécurité
     return 0 
 
-def create_video_for_slot(slot_number: int, all_daily_contents: List[Dict[str, Any]], slot_hours: List[int]) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+def create_video_for_slot(
+    slot_number: int, 
+    all_daily_contents: List[Dict[str, Any]], 
+    slot_hours: List[int],
+    config: Dict[str, Any], # (MODIFIÉ) Injection de la config
+    debug_mode: bool        # (MODIFIÉ) Injection du mode debug
+) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
     """Crée une vidéo pour un créneau spécifique à partir des données générées."""
-    global CONFIG
-    # Utiliser le mode DEBUG depuis la config (qui est un simple os.getenv, ici on simule)
-    debug_mode = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
+    # (MODIFIÉ) global CONFIG est supprimé
     
     slot_display = slot_number + 1
     
@@ -54,11 +53,11 @@ def create_video_for_slot(slot_number: int, all_daily_contents: List[Dict[str, A
         print(f"\n🎬 CRÉNEAU {slot_display}/{len(slot_hours)} - Heure cible: {slot_hours[slot_number]}h00")
         print("=" * 45)
         
-        # Affichage des métadonnées
         print(f"📝 Titre: {content_data.get('title', 'N/A')}")
         
-        # Créer la vidéo
-        creator = VideoCreator() # Initialisation utilise la config
+        # (MODIFIÉ) On passe la config au constructeur (supposant qu'il l'accepte)
+        # Si ce n'est pas le cas, il continuera à lire la globale, mais c'est une meilleure pratique
+        creator = VideoCreator(config) 
         video_path = creator.create_professional_video(content_data)
         
         if video_path and os.path.exists(video_path):
@@ -69,19 +68,29 @@ def create_video_for_slot(slot_number: int, all_daily_contents: List[Dict[str, A
         
     except Exception as e:
         print(f"❌ Erreur critique lors de la création pour le créneau {slot_display}: {e}")
+        # (MODIFIÉ) Utilise le paramètre debug_mode
         if debug_mode:
             traceback.print_exc(file=sys.stdout)
         return None, None
 
-def create_and_process_videos(mode: str, slot_hours: List[int], slot_pause_s: int) -> List[Dict[str, Any]]:
+def create_and_process_videos(
+    mode: str, 
+    slot_hours: List[int], 
+    slot_pause_s: int,
+    config: Dict[str, Any], # (MODIFIÉ) Injection de la config
+    debug_mode: bool,       # (MODIFIÉ) Injection du mode debug
+    force_run: bool         # (MODIFIÉ) Injection du flag force_run
+) -> List[Dict[str, Any]]:
     """Gère la création et le traitement des vidéos basés sur le mode (prod ou --all)."""
     successful_videos = []
     
     # 1. Génération de TOUT le contenu pour la journée
     try:
-        all_daily_contents = generate_daily_contents() # Utilise le nombre de slots du config.yaml
+        # (MODIFIÉ) On passe force_run au générateur
+        # Il faudra peut-être adapter la signature de generate_daily_contents
+        print(f"Génération du contenu (Forcé: {force_run})...")
+        all_daily_contents = generate_daily_contents(force_run=force_run) 
         
-        # Vérification basée sur le nombre de créneaux défini dans le moteur (SLOT_HOURS)
         if not all_daily_contents or len(all_daily_contents) != len(slot_hours):
             print(f"⚠️ AVERTISSEMENT: Le générateur a produit {len(all_daily_contents)} contenus, mais le moteur attend {len(slot_hours)} créneaux.")
         
@@ -95,7 +104,10 @@ def create_and_process_videos(mode: str, slot_hours: List[int], slot_pause_s: in
     print(f"➡️ Mode d'exécution: {'TOUS LES CRÉNEAUX' if mode == '--all' else f'CRÉNEAU {slots_to_process[0] + 1} (Production)'}")
 
     for slot in slots_to_process:
-        video_path, content_data = create_video_for_slot(slot, all_daily_contents, slot_hours)
+        # (MODIFIÉ) On passe la config et le debug_mode
+        video_path, content_data = create_video_for_slot(
+            slot, all_daily_contents, slot_hours, config, debug_mode
+        )
         
         if video_path and content_data:
             successful_videos.append({
@@ -105,77 +117,94 @@ def create_and_process_videos(mode: str, slot_hours: List[int], slot_pause_s: in
                 'content_data': content_data
             })
         
-        # Pause entre les créneaux uniquement en mode --all
         if mode == "--all" and slot < len(slot_hours) - 1:
             print(f"\n⏳ Pause de {slot_pause_s}s avant le prochain créneau...")
             time.sleep(slot_pause_s)
     
     return successful_videos
 
-def handle_upload(successful_videos: List[Dict[str, Any]], mode: str) -> None:
+def handle_upload(successful_videos: List[Dict[str, Any]], mode: str, config: Dict[str, Any]) -> None: # (MODIFIÉ)
     """Gère l'upload YouTube pour les vidéos réussies."""
     if not successful_videos:
         print("📤 Aucune vidéo à uploader.")
         return
 
-    # En mode --all (test/démo), on uploade idéalement la première vidéo créée.
-    # En mode production, on uploade la vidéo qui vient d'être créée (la dernière de la liste).
     video_to_upload = successful_videos[0] if mode == "--all" else successful_videos[-1]
     
     print("\n📦 ÉTAPE FINALE: Tentative d'Upload YouTube...")
     try:
-        uploader = YouTubeUploader() # Initialisation utilise la config pour les secrets
-        # On utilise les données complètes (content_data) pour le titre, description, tags, etc.
+        # (MODIFIÉ) On passe la config au constructeur
+        uploader = YouTubeUploader(config) 
         uploader.upload_video(video_to_upload['path'], video_to_upload['content_data'])
         print("✅ Upload terminé avec succès.")
     except ImportError:
         print("⚠️ Upload désactivé ou dépendance YouTube non trouvée.")
     except Exception as e:
         print(f"❌ Échec critique de l'Upload : {e}")
-        # Le mode DEBUG est géré par la classe Uploader elle-même, mais on le rappelle ici pour la clarté.
 
+# (MODIFIÉ) Fonction pour gérer argparse
+def parse_arguments() -> argparse.Namespace:
+    """Parse les arguments de la ligne de commande."""
+    parser = argparse.ArgumentParser(description="YouTube Auto Factory Engine")
+    parser.add_argument(
+        '--all',
+        action='store_true',
+        help="Forcer la génération et le traitement de TOUS les créneaux."
+    )
+    parser.add_argument(
+        '--force-run',
+        type=str,
+        default='false',
+        choices=['true', 'false'], # S'assure que seules ces valeurs sont acceptées
+        help="Argument de CI/CD pour forcer l'exécution (ex: régénération de contenu)."
+    )
+    return parser.parse_args()
 
 def main() -> bool:
     """Fonction principale du moteur de contenu."""
-    global CONFIG
+    # (MODIFIÉ) La variable globale n'est plus utilisée
     
     try:
-        # --- 1. CHARGEMENT DE LA CONFIGURATION ET DES CONSTANTES ---
-        CONFIG = ConfigLoader().get_config()
+        # --- 0. Arguments & Configuration ---
+        args = parse_arguments()
         
-        # Assurez-vous que les constantes proviennent de la configuration
-        slot_hours = CONFIG.get('WORKFLOW', {}).get('SLOT_HOURS', [8, 12, 16, 20])
-        slot_pause_s = CONFIG.get('WORKFLOW', {}).get('SLOT_PAUSE_SECONDS', 5)
+        config = ConfigLoader().get_config()
         
-        # Le mode DEBUG est laissé en variable d'environnement pour le workflow YAML, mais on peut le lire ici
+        # (MODIFIÉ) Logique des modes gérée par argparse
+        force_run_bool = args.force_run.lower() == 'true'
+        mode = "--all" if args.all else "production"
+        
+        # Le mode DEBUG est lu une seule fois ici
         debug_mode = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
 
-        # Détecter le mode d'exécution
-        mode = "--all" if len(sys.argv) > 1 and sys.argv[1] == "--all" else "production"
-
+        # --- 1. Initialisation ---
+        slot_hours = config.get('WORKFLOW', {}).get('SLOT_HOURS', [8, 12, 16, 20])
+        slot_pause_s = config.get('WORKFLOW', {}).get('SLOT_PAUSE_SECONDS', 5)
+        
         print("=" * 60)
         print("🎯 YOUTUBE AUTO FACTORY - SYSTÈME QUOTIDIEN")
         print("=" * 60)
         print(f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"🐛 Mode DEBUG: {debug_mode}")
+        print(f"🏃 Mode d'exécution: {mode.upper()}")
+        print(f"🔄 Forcer l'exécution (force_run): {force_run_bool}")
         print(f"⏱️ Créneaux définis: {slot_hours}")
         
-        # 2. Vérifications initiales (centralisées)
+        # 2. Vérifications initiales
         print("\n📋 ÉTAPE 2: Vérification des dossiers de sortie...")
         
-        output_root = CONFIG['PATHS']['OUTPUT_ROOT']
-        audio_dir = CONFIG['PATHS']['AUDIO_DIR']
-        video_dir = CONFIG['PATHS']['VIDEO_DIR']
-        image_dir = CONFIG['PATHS']['IMAGE_DIR']
-
+        output_root = config['PATHS']['OUTPUT_ROOT']
         ensure_directory(output_root)
-        ensure_directory(os.path.join(output_root, audio_dir))
-        ensure_directory(os.path.join(output_root, video_dir))
-        ensure_directory(os.path.join(output_root, image_dir))
+        ensure_directory(os.path.join(output_root, config['PATHS']['AUDIO_DIR']))
+        ensure_directory(os.path.join(output_root, config['PATHS']['VIDEO_DIR']))
+        ensure_directory(os.path.join(output_root, config['PATHS']['IMAGE_DIR']))
         print("✅ Tous les dossiers sont prêts.")
 
         # 3. Création et traitement des vidéos
-        successful_videos = create_and_process_videos(mode, slot_hours, slot_pause_s)
+        # (MODIFIÉ) On passe les arguments et la config
+        successful_videos = create_and_process_videos(
+            mode, slot_hours, slot_pause_s, config, debug_mode, force_run_bool
+        )
         
         # 4. Résumé final
         print("\n" + "=" * 50)
@@ -186,29 +215,25 @@ def main() -> bool:
             print(f"   🎬 Créneau {video['slot']}: {video['title']}")
             
         # 5. Upload
-        handle_upload(successful_videos, mode)
+        handle_upload(successful_videos, mode, config) # (MODIFIÉ)
         
         print("\n🎉 PROCESSUS TERMINÉ.")
         return len(successful_videos) > 0
 
     except Exception as e:
         print(f"\n❌ ERREUR CRITIQUE DANS MAIN: {e}")
+        # (MODIFIÉ) On utilise la variable debug_mode lue au début
         if debug_mode:
             traceback.print_exc(file=sys.stdout)
         return False
 
 if __name__ == "__main__":
-    # Correction: Mettez les SLOT_HOURS dans config.yaml ou laissez-les en dur pour l'exécution initiale
-    # Pour l'exécution en Python pur, il faut s'assurer que les imports relatifs fonctionnent (lancement depuis le dossier parent)
-    
-    # Pour le test, on ajoute une vérification simple des imports relatifs dans le bloc d'exécution :
     try:
         from content_factory.config_loader import ConfigLoader
     except ImportError:
-        print("❌ ERREUR D'IMPORTATION: Veuillez lancer le script depuis le dossier racine du projet (pas depuis content_factory).")
-        print(f"Ex: python3 content_factory/auto_content_engine.py")
+        print("❌ ERREUR D'IMPORTATION: Veuillez lancer le script depuis le dossier racine du projet.")
+        print(f"Ex: python3 -m content_factory.auto_content_engine")
         sys.exit(1)
         
     success = main()
-    # Le code de retour 0 pour le succès est la norme pour les workflows CI/CD
     sys.exit(0 if success else 1)

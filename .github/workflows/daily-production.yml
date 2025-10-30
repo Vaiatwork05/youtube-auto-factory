@@ -9,7 +9,7 @@ name: 🚀 Production - Lancement Quotidien du Moteur
 on:
   schedule:
     # Exécution quatre fois par jour : 6h, 10h, 14h, 18h UTC
-    - cron: '0 6,10,14,18 * * *' 
+    - cron: '0 6,10,14,18 * * *'
   
   workflow_dispatch:
     inputs:
@@ -23,10 +23,10 @@ on:
         required: true
         default: 'false'
         type: boolean
-        
+
 permissions:
-  contents: read 
-  
+  contents: read
+
 jobs:
   daily_production_job:
     
@@ -35,15 +35,15 @@ jobs:
     
     # 2. CONTENEUR : L'ensemble des étapes s'exécuteront dans ce conteneur Docker.
     container:
-      image: jrottenberg/ffmpeg:4.4-python3.11 
-      
+      image: jrottenberg/ffmpeg:4.4-python3.11
+    
     # ===============================================
     # VARIABLES D'ENVIRONNEMENT ET SECRETS
     # ===============================================
     env:
-      FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }} 
+      FORCE_RUN: ${{ github.event.inputs.force_run || 'false' }}
       ENGINE_SCRIPT: 'content_factory/auto_content_engine.py'
-      OUTPUT_ROOT: 'output' 
+      OUTPUT_ROOT: 'output'
       
       # 🔑 Injection des Secrets
       UNSPLASH_API_KEY: ${{ secrets.UNSPLASH_API_KEY }}
@@ -52,9 +52,9 @@ jobs:
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       
       # 🐞 Variables pour le diagnostic (si github_debug est 'true')
-      ACTIONS_STEP_DEBUG: ${{ github.event.inputs.github_debug }} 
-      RUNNER_DEBUG: ${{ github.event.inputs.github_debug }} 
-      
+      ACTIONS_STEP_DEBUG: ${{ github.event.inputs.github_debug }}
+      RUNNER_DEBUG: ${{ github.event.inputs.github_debug }}
+    
     steps:
     
     # ⬇️ ÉTAPE 1: Initialisation
@@ -76,7 +76,7 @@ jobs:
         
         # Mise à jour de pip et installation
         python -m pip install --upgrade pip setuptools
-        pip install -r requirements.txt 
+        pip install -r requirements.txt
         
         echo "## Installation terminée."
 
@@ -104,8 +104,8 @@ jobs:
       if: always() # S'exécute même en cas d'échec pour récupérer les logs
       with:
         name: resultats-${{ github.run_id }}
-        path: app/${{ env.OUTPUT_ROOT }} 
-        retention-days: 7 
+        path: app/${{ env.OUTPUT_ROOT }}
+        retention-days: 7
         
     # 🔔 ÉTAPE 5: Notifications
     - name: 🔔 Notification de Succès

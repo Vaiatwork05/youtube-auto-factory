@@ -1,265 +1,485 @@
-# content_factory/video_creator.py (Intégration config.yaml)
+# content_factory/video_creator.py (VERSION SHORTS YOUTUBE)
 
 import os
-import sys
 import time
-import re
-import traceback
-import subprocess
-from typing import Dict, Any, List, Optional, Tuple
+import random
+from typing import Dict, List, Any, Optional, Tuple
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+import numpy as np
 
-# Import centralisé des dépendances
+# Gestion des imports MoviePy avec fallback
+try:
+    from moviepy.editor import VideoFileClip, AudioFileClip, ImageClip, CompositeVideoClip, TextClip, concatenate_videoclips
+    from moviepy.video.fx.all import resize, loop
+    HAS_MOVIEPY = True
+except ImportError:
+    HAS_MOVIEPY = False
+    print("⚠️ MoviePy non disponible")
+
 from content_factory.utils import clean_filename, safe_path_join, ensure_directory
-from content_factory.config_loader import ConfigLoader # Import critique pour la configuration
-from PIL import Image, ImageDraw, ImageFont # Import anticipé pour les fallbacks PIL
-from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips # Import anticipé pour l'assemblage
-
-# --- CONSTANTES TECHNIQUES (NON NÉCESSITANT PAS D'ÊTRE DANS CONFIG) ---
-VIDEO_CODEC = 'libx264'
-AUDIO_CODEC = 'aac'
+from content_factory.config_loader import ConfigLoader
+from content_factory.image_manager import get_images
+from content_factory.audio_generator import generate_audio
 
 class VideoCreator:
     """
-    Crée une vidéo en utilisant des clips images et un fichier audio, en s'appuyant
-    sur les paramètres définis dans config.yaml.
+    Créateur de vidéos Shorts YouTube optimisé pour l'engagement.
+    Version 9:16 verticale avec sous-titres automatiques.
     """
+    
     def __init__(self):
         self.config = ConfigLoader().get_config()
-        self.video_config = self.config['VIDEO_CREATOR']
-        self.paths = self.config['PATHS']
+        self.video_config = self.config.get('VIDEO_CREATOR', {})
+        self.paths = self.config.get('PATHS', {})
         
-        # Chemins basés sur la configuration
-        self.output_dir = safe_path_join(self.paths['OUTPUT_ROOT'], self.paths['VIDEO_DIR'])
-        self.audio_dir = safe_path_join(self.paths['OUTPUT_ROOT'], self.paths['AUDIO_DIR'])
-        self.image_dir = safe_path_join(self.paths['OUTPUT_ROOT'], self.paths['IMAGE_DIR'])
+        # CONFIGURATION SHORTS
+        self.resolution = (1080, 1920)  # 9:16 vertical
+        self.duration_range = (15, 45)  # Durée idéale Shorts
+        self.target_fps = 30
         
-        # Paramètres configurables
-        self.resolution: Tuple[int, int] = tuple(self.video_config.get('RESOLUTION', [1280, 720]))
-        self.fps: int = self.video_config.get('FPS', 24)
-        self.bitrate: str = self.video_config.get('BITRATE', '5000k')
-        self.num_images: int = self.video_config.get('IMAGES_PER_VIDEO', 10)
-        self.fallback_duration_s: int = self.video_config.get('FALLBACK_DURATION_S', 15)
-        
+        # Chemins
+        output_root = self.paths.get('OUTPUT_ROOT', 'output')
+        video_dir = self.paths.get('VIDEO_DIR', 'videos')
+        self.output_dir = safe_path_join(output_root, video_dir)
         ensure_directory(self.output_dir)
-    
+        
+        # Assets pour Shorts
+        self.background_music = None  # À implémenter si souhaité
+        self.sound_effects = []  # À implémenter
+        
+        print("🎬 VideoCreator Shorts initialisé - Format: 1080x1920 (9:16)")
+
     def create_professional_video(self, content_data: Dict[str, Any]) -> Optional[str]:
-        """Fonction principale pour créer une vidéo."""
+        """
+        Crée une vidéo Shorts YouTube professionnelle.
+        """
+        print(f"\n🎬 CRÉATION SHORTS: {content_data['title']}")
+        
         try:
-            print("\n🎬 Démarrage de la production vidéo...")
+            # 1. PRÉPARATION DES ASSETS
+            assets = self._prepare_assets(content_data)
+            if not assets:
+                return None
             
-            title = content_data.get('title', 'Vidéo Automatique')
-            script = content_data.get('script', 'Contenu généré.')
-            clean_title = clean_filename(title)
+            # 2. GÉNÉRATION AUDIO AVEC TEXTE NETTOYÉ
+            script_for_tts = self._extract_clean_script(content_data)
+            audio_path = generate_audio(script_for_tts, content_data['title'])
+            if not audio_path or not os.path.exists(audio_path):
+                print("❌ Échec génération audio")
+                return None
             
-            video_path = safe_path_join(self.output_dir, f"video_{clean_title}.mp4")
+            # 3. CRÉATION DE LA VIDÉO SHORTS
+            final_video_path = self._create_shorts_video(content_data, assets, audio_path)
             
-            # --- ÉTAPE 1: Générer/Obtenir l'Audio ---
-            audio_path = self._generate_audio(script, clean_title)
-            if not audio_path or os.path.getsize(audio_path) < 1024:
-                 raise RuntimeError("Échec de la génération audio ou fichier trop petit.")
+            # 4. NETTOYAGE DES FICHIERS TEMPORAIRES
+            self._cleanup_temp_files([audio_path] + assets.get('image_paths', []))
             
-            # --- ÉTAPE 2: Obtenir les Images ---
-            image_paths = self._get_images(content_data, self.num_images)
+            return final_video_path
             
-            if not image_paths:
-                print("❌ Aucune image disponible. Tentative de vidéo de secours.")
-                return self._create_fallback_video(content_data)
+        except Exception as e:
+            print(f"❌ Erreur création Shorts: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
-            # --- ÉTAPE 3: Assembler la Vidéo ---
-            print("🎥 Assemblage vidéo...")
-            result_path = self._create_video_from_assets(image_paths, audio_path, video_path)
+    def _extract_clean_script(self, content_data: Dict[str, Any]) -> str:
+        """
+        Extrait et nettoie le script pour le TTS.
+        Sépare les points du Top 10 pour un rythme dynamique.
+        """
+        script = content_data.get('script', '')
+        
+        # Si c'est un Top 10, on structure le script différemment
+        if 'top10' in content_data.get('content_type', '').lower():
+            return self._structure_top10_script(script)
+        else:
+            # Nettoyage basique pour autres contenus
+            return self._clean_script_for_tts(script)
+    
+    def _structure_top10_script(self, script: str) -> str:
+        """
+        Structure le script Top 10 pour les Shorts.
+        Un point par clip court.
+        """
+        lines = script.split('\n')
+        clean_lines = []
+        
+        for line in lines:
+            line = self._clean_script_for_tts(line)
+            if line and len(line.strip()) > 10:  # Lignes significatives
+                clean_lines.append(line)
+        
+        # Pour les Shorts, on prend les points principaux seulement
+        return ". ".join(clean_lines[:5])  # Maximum 5 points pour Shorts
+
+    def _clean_script_for_tts(self, text: str) -> str:
+        """Nettoie le texte pour le TTS (version simplifiée)."""
+        import re
+        # Supprimer émojis et caractères spéciaux
+        text = re.sub(r'[^\w\s,.!?;:()\-]', '', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+
+    def _prepare_assets(self, content_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Prépare les images et assets pour la vidéo."""
+        print("🖼️ Préparation des assets...")
+        
+        # Récupérer les images
+        image_paths = get_images(content_data, num_images=5)  # Plus d'images pour variété
+        
+        if not image_paths:
+            print("❌ Aucune image disponible")
+            return {}
+        
+        # Redimensionner les images pour le format Shorts
+        processed_images = []
+        for img_path in image_paths:
+            processed_path = self._resize_for_shorts(img_path)
+            if processed_path:
+                processed_images.append(processed_path)
+        
+        return {
+            'image_paths': processed_images,
+            'title': content_data['title'],
+            'keywords': content_data.get('keywords', [])
+        }
+
+    def _resize_for_shorts(self, image_path: str) -> Optional[str]:
+        """Redimensionne une image pour le format 9:16."""
+        try:
+            img = Image.open(image_path)
             
-            # 100 KB minimum
-            if result_path and os.path.exists(result_path) and os.path.getsize(result_path) > 100 * 1024: 
-                file_size = os.path.getsize(result_path)
-                print(f"✅ Vidéo créée avec succès: {result_path} ({file_size / (1024*1024):.2f} Mo)")
-                return result_path
+            # Calculer le redimensionnement pour remplir 9:16
+            target_width, target_height = self.resolution
+            
+            # Redimensionner en gardant le ratio
+            img_ratio = img.width / img.height
+            target_ratio = target_width / target_height
+            
+            if img_ratio > target_ratio:
+                # Image plus large, redimensionner par la hauteur
+                new_height = target_height
+                new_width = int(img.width * (target_height / img.height))
             else:
-                print("❌ Échec de la création du fichier final à partir des assets.")
-                return self._create_fallback_video(content_data)
-                
-        except Exception as e:
-            print(f"❌ Erreur critique dans create_professional_video: {e}")
-            traceback.print_exc(file=sys.stdout) # Affichage de la trace en mode debug
-            print("Tentative de vidéo de secours...")
-            return self._create_fallback_video(content_data)
-    
-    # --- Méthodes d'Acquisition (Utilise les chemins configurés) ---
-
-    def _generate_audio(self, text: str, clean_title: str) -> Optional[str]:
-        """Génère l'audio via AudioGenerator, avec fallback silencieux."""
-        try:
-            from content_factory.audio_generator import generate_audio as generate_proj_audio
-            return generate_proj_audio(text, clean_title)
-        except ImportError:
-            print("⚠️ Module AudioGenerator non trouvé.")
-        except Exception as e:
-            print(f"⚠️ Erreur génération audio projet: {e}")
-        
-        # Fallback 1: Audio silencieux FFmpeg (basé sur la durée de secours configurée)
-        audio_path = safe_path_join(self.audio_dir, f"audio_fallback_{clean_title}.mp3")
-        try:
-            print(f"🔊 Fallback : Création d'un audio silencieux de {self.fallback_duration_s}s...")
-            subprocess.run([
-                'ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
-                '-t', str(self.fallback_duration_s), '-acodec', 'libmp3lame', '-y', audio_path
-            ], check=True, capture_output=True, timeout=30)
-            return audio_path
-        except Exception as e:
-            print(f"⚠️ Erreur FFmpeg pour audio silencieux: {e}")
-            return None
-
-    def _get_images(self, content_data: Dict[str, Any], num_images: int) -> List[str]:
-        """Récupère des images via ImageManager, avec fallback sur des images générées."""
-        images = []
-        try:
-            from content_factory.image_manager import ImageManager
-            manager = ImageManager()
-            images = manager.get_images_for_content(content_data, num_images)
-        except ImportError:
-             print("⚠️ Module ImageManager non trouvé.")
-        except Exception as e:
-            print(f"⚠️ Erreur récupération images projet: {e}")
-        
-        # Fallback 1: Images de secours internes
-        if not images or len(images) < num_images:
-            print(f"🖼️ Fallback : Création de {num_images} images de secours simples.")
-            images = self._create_fallback_images(num_images, content_data.get('title', 'Placeholder'))
-
-        return images
-    
-    def _create_fallback_images(self, num_images: int, base_title: str) -> List[str]:
-        """Crée des images de secours simples (nécessite PIL) dans le répertoire configuré."""
-        images = []
-        ensure_directory(self.image_dir)
-        
-        try:
-            for i in range(num_images):
-                img_path = safe_path_join(self.image_dir, f"placeholder_{clean_filename(base_title)}_{i}.jpg")
-                text = f"ERREUR IMAGES - Clip {i+1}"
-                self._create_simple_image(img_path, text)
-                images.append(img_path)
-            return images
-        except Exception:
-            print("❌ La bibliothèque PIL n'est pas installée ou erreur. Impossible de créer des images de secours.")
-            return []
-
-    def _create_simple_image(self, path: str, text: str):
-        """Crée une image simple avec résolution configurable (nécessite PIL)."""
-        
-        # Résolution de l'image de secours basée sur la configuration
-        img = Image.new('RGB', self.resolution, color=(53, 94, 159))
-        draw = ImageDraw.Draw(img)
-        
-        try:
-            # Essayer une police commune en CI/CD
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
-        except Exception:
-            # Fallback
-            font = ImageFont.load_default()
-        
-        # Centrage du texte
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        
-        x = (self.resolution[0] - text_width) // 2
-        y = (self.resolution[1] - text_height) // 2
-        
-        draw.text((x, y), text, fill=(255, 255, 255), font=font)
-        img.save(path, quality=85)
-    
-    # --- Méthode d'Assemblage Critique ---
-
-    def _create_video_from_assets(self, image_paths: List[str], audio_path: str, output_path: str) -> Optional[str]:
-        """Assemble les clips vidéo et audio (nécessite moviepy)."""
-        
-        # Vérifications
-        if not os.path.exists(audio_path) or not image_paths:
-            print("Erreur assets: Fichier audio ou images manquants.")
-            return None
-        
-        try:
-            audio_clip = AudioFileClip(audio_path)
-            audio_duration = audio_clip.duration
-            if audio_duration < 1.0:
-                audio_duration = self.fallback_duration_s
-                print(f"⚠️ Durée audio trop courte (< 1s), ajustée à {self.fallback_duration_s}s (fallback).")
+                # Image plus haute, redimensionner par la largeur
+                new_width = target_width
+                new_height = int(img.height * (target_width / img.width))
             
-            duration_per_image = audio_duration / len(image_paths)
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
             
-            print(f"⏱️ Durée audio: {audio_duration:.1f}s | ⏰ Durée/image: {duration_per_image:.1f}s")
+            # Recadrer au centre pour exactement 1080x1920
+            left = (new_width - target_width) / 2
+            top = (new_height - target_height) / 2
+            right = (new_width + target_width) / 2
+            bottom = (new_height + target_height) / 2
             
-            # Créer les clips images
-            video_clips = []
-            for i, img_path in enumerate(image_paths):
-                clip = ImageClip(img_path, duration=duration_per_image)
-                # Redimensionnement à la résolution configurée
-                clip = clip.resize(newsize=self.resolution) 
-                video_clips.append(clip)
+            img = img.crop((left, top, right, bottom))
             
-            # Concaténer et synchroniser
-            final_video = concatenate_videoclips(video_clips, method="compose")
-            final_video = final_video.set_audio(audio_clip)
-            final_video = final_video.set_duration(audio_duration)
-            
-            # Exporter avec paramètres configurés
-            final_video.write_videofile(
-                output_path,
-                fps=self.fps,
-                codec=VIDEO_CODEC,
-                audio_codec=AUDIO_CODEC,
-                bitrate=self.bitrate, 
-                verbose=False,
-                logger=None,
-                threads=4
-            )
+            # Sauvegarder l'image redimensionnée
+            output_path = image_path.replace('.jpg', '_shorts.jpg')
+            img.save(output_path, 'JPEG', quality=85)
             
             return output_path
             
-        finally:
-            # Nettoyage des ressources
-            if 'audio_clip' in locals() and audio_clip: audio_clip.close()
-            if 'video_clips' in locals(): 
-                for clip in video_clips: 
-                    if clip: clip.close()
-            if 'final_video' in locals() and final_video: final_video.close()
+        except Exception as e:
+            print(f"❌ Erreur redimensionnement Shorts: {e}")
+            return None
 
-    # --- Méthode de Secours Ultime ---
+    def _create_shorts_video(self, content_data: Dict[str, Any], assets: Dict[str, Any], audio_path: str) -> Optional[str]:
+        """Crée la vidéo Shorts finale."""
+        print("🎬 Assemblage du Shorts...")
+        
+        if not HAS_MOVIEPY:
+            print("❌ MoviePy non disponible")
+            return None
+        
+        try:
+            # Charger l'audio
+            audio_clip = AudioFileClip(audio_path)
+            audio_duration = audio_clip.duration
+            
+            # Limiter la durée pour les Shorts
+            max_duration = min(audio_duration, self.duration_range[1])
+            audio_clip = audio_clip.subclip(0, max_duration)
+            
+            # Créer les clips vidéo
+            video_clips = self._create_video_clips(assets, max_duration)
+            
+            if not video_clips:
+                print("❌ Aucun clip vidéo créé")
+                return None
+            
+            # Assembler la vidéo finale
+            final_video = self._assemble_shorts(video_clips, audio_clip, content_data)
+            
+            # Exporter
+            output_filename = f"shorts_{clean_filename(content_data['title'])}.mp4"
+            output_path = safe_path_join(self.output_dir, output_filename)
+            
+            print("📤 Exportation du Shorts...")
+            final_video.write_videofile(
+                output_path,
+                fps=self.target_fps,
+                codec='libx264',
+                audio_codec='aac',
+                temp_audiofile='temp-audio.m4a',
+                remove_temp=True,
+                verbose=False,
+                logger=None
+            )
+            
+            # Fermer les clips
+            final_video.close()
+            audio_clip.close()
+            for clip in video_clips:
+                clip.close()
+            
+            print(f"✅ Shorts créé: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            print(f"❌ Erreur création Shorts: {e}")
+            return None
 
-    def _create_fallback_video(self, content_data: Dict[str, Any]) -> Optional[str]:
-        """Crée une vidéo de secours ultra simple (image fixe et durée de secours)."""
+    def _create_video_clips(self, assets: Dict[str, Any], duration: float) -> List[Any]:
+        """Crée les clips vidéo à partir des images."""
+        if not HAS_MOVIEPY:
+            return []
         
-        title = content_data.get('title', 'Vidéo Secours')
-        video_path = safe_path_join(self.output_dir, f"fallback_{clean_filename(title)}.mp4")
+        image_paths = assets.get('image_paths', [])
+        if not image_paths:
+            return []
         
-        # 1. Créer l'image de secours
-        img_path = safe_path_join(self.image_dir, "fallback_ultra.jpg")
-        ensure_directory(self.image_dir)
-        self._create_simple_image(img_path, f"Échec Critique - {title[:30]}")
+        clips = []
         
-        # 2. Créer la vidéo
-        clip = ImageClip(img_path, duration=self.fallback_duration_s)
-        clip = clip.resize(newsize=self.resolution)
+        # Durée par image (variée pour dynamisme)
+        clip_durations = self._calculate_clip_durations(len(image_paths), duration)
         
-        # Exportation simple
-        clip.write_videofile(
-            video_path,
-            fps=self.fps,
-            codec=VIDEO_CODEC,
-            verbose=False,
-            logger=None
-        )
-        clip.close()
+        for i, img_path in enumerate(image_paths):
+            try:
+                # Créer un clip image
+                clip = ImageClip(img_path, duration=clip_durations[i])
+                
+                # Redimensionner pour s'assurer du format 9:16
+                clip = clip.resize(height=self.resolution[1])
+                
+                # Centrer horizontalement
+                clip = clip.set_position(('center', 'center'))
+                
+                clips.append(clip)
+                
+            except Exception as e:
+                print(f"❌ Erreur création clip {i}: {e}")
+                continue
         
-        print(f"✅ Vidéo de secours finale créée: {video_path}")
-        return video_path
+        return clips
+
+    def _calculate_clip_durations(self, num_clips: int, total_duration: float) -> List[float]:
+        """Calcule des durées variées pour les clips."""
+        base_duration = total_duration / num_clips
         
-# --- Fonction d'Export ---
+        # Varier les durées pour plus de dynamisme
+        durations = []
+        for i in range(num_clips):
+            variation = random.uniform(0.8, 1.2)  # ±20%
+            durations.append(base_duration * variation)
+        
+        # Ajuster pour total exact
+        total = sum(durations)
+        factor = total_duration / total
+        return [d * factor for d in durations]
+
+    def _assemble_shorts(self, video_clips: List[Any], audio_clip: Any, content_data: Dict[str, Any]) -> Any:
+        """Assemble tous les éléments du Shorts."""
+        
+        # Concatenér les clips vidéo
+        if len(video_clips) > 1:
+            final_video = concatenate_videoclips(video_clips, method="compose")
+        else:
+            final_video = video_clips[0]
+        
+        # Ajouter l'audio
+        final_video = final_video.set_audio(audio_clip)
+        
+        # Ajouter les sous-titres (optionnel - complexe à implémenter)
+        # final_video = self._add_subtitles(final_video, content_data)
+        
+        # S'assurer de la durée exacte
+        final_video = final_video.set_duration(audio_clip.duration)
+        
+        return final_video
+
+    def _add_subtitles(self, video_clip: Any, content_data: Dict[str, Any]) -> Any:
+        """
+        Ajoute des sous-titres animés (version basique).
+        À améliorer avec une vraie reconnaissance vocale.
+        """
+        # IMPLÉMENTATION BASIQUE - À COMPLÉTER
+        # Idéalement: utiliser speech-to-text pour synchroniser
+        
+        try:
+            # Sous-titre simple avec le titre
+            title = content_data['title']
+            txt_clip = TextClip(
+                title, 
+                fontsize=40, 
+                color='white',
+                font='Arial-Bold',
+                stroke_color='black',
+                stroke_width=2
+            )
+            
+            # Position en bas (standard Shorts)
+            txt_clip = txt_clip.set_position(('center', 1600)).set_duration(3)
+            
+            # Composite avec le texte
+            return CompositeVideoClip([video_clip, txt_clip])
+            
+        except Exception as e:
+            print(f"⚠️ Sous-titres non ajoutés: {e}")
+            return video_clip
+
+    def _cleanup_temp_files(self, file_paths: List[str]):
+        """Nettoie les fichiers temporaires."""
+        for file_path in file_paths:
+            try:
+                if os.path.exists(file_path) and 'shorts' not in file_path and 'audio_' not in file_path:
+                    os.remove(file_path)
+            except Exception as e:
+                print(f"⚠️ Impossible de supprimer {file_path}: {e}")
+
+    def create_emergency_video(self, content_data: Dict[str, Any]) -> Optional[str]:
+        """Crée une vidéo de secours si la génération principale échoue."""
+        print("🆘 Création vidéo de secours...")
+        
+        try:
+            # Vidéo simple avec une image et audio
+            title = content_data['title']
+            output_filename = f"shorts_emergency_{clean_filename(title)}.mp4"
+            output_path = safe_path_join(self.output_dir, output_filename)
+            
+            # Générer un audio minimal
+            script = self._extract_clean_script(content_data)
+            audio_path = generate_audio(script, title)
+            
+            if audio_path and os.path.exists(audio_path):
+                # Créer une image de fond simple
+                bg_path = self._create_emergency_background(title)
+                
+                if HAS_MOVIEPY and bg_path:
+                    audio_clip = AudioFileClip(audio_path)
+                    video_clip = ImageClip(bg_path, duration=audio_clip.duration)
+                    video_clip = video_clip.set_audio(audio_clip)
+                    
+                    video_clip.write_videofile(
+                        output_path,
+                        fps=24,
+                        verbose=False,
+                        logger=None
+                    )
+                    
+                    video_clip.close()
+                    audio_clip.close()
+                    os.remove(bg_path)
+                    os.remove(audio_path)
+                    
+                    print(f"✅ Vidéo de secours créée: {output_path}")
+                    return output_path
+            
+            return None
+            
+        except Exception as e:
+            print(f"❌ Échec vidéo de secours: {e}")
+            return None
+
+    def _create_emergency_background(self, title: str) -> Optional[str]:
+        """Crée un fond d'urgence pour les vidéos de secours."""
+        try:
+            width, height = self.resolution
+            img = Image.new('RGB', (width, height), color=(30, 30, 60))  # Fond bleu nuit
+            draw = ImageDraw.Draw(img)
+            
+            # Ajouter le titre
+            try:
+                font = ImageFont.truetype("arial.ttf", 60)
+            except:
+                font = ImageFont.load_default()
+            
+            # Diviser le titre en lignes
+            words = title.split()
+            lines = []
+            current_line = []
+            
+            for word in words:
+                test_line = ' '.join(current_line + [word])
+                bbox = draw.textbbox((0, 0), test_line, font=font)
+                text_width = bbox[2] - bbox[0]
+                
+                if text_width < width - 100:  # Marge
+                    current_line.append(word)
+                else:
+                    lines.append(' '.join(current_line))
+                    current_line = [word]
+            
+            if current_line:
+                lines.append(' '.join(current_line))
+            
+            # Dessiner les lignes
+            total_height = len(lines) * 70
+            start_y = (height - total_height) // 2
+            
+            for i, line in enumerate(lines):
+                bbox = draw.textbbox((0, 0), line, font=font)
+                text_width = bbox[2] - bbox[0]
+                x = (width - text_width) // 2
+                y = start_y + (i * 70)
+                
+                draw.text((x, y), line, font=font, fill=(255, 255, 255))
+            
+            output_path = safe_path_join(self.output_dir, "emergency_bg.jpg")
+            img.save(output_path, 'JPEG', quality=90)
+            return output_path
+            
+        except Exception as e:
+            print(f"❌ Erreur fond d'urgence: {e}")
+            return None
+
+# --- FONCTION D'EXPORT ---
 def create_video(content_data: Dict[str, Any]) -> Optional[str]:
-    """Fonction principale pour créer une vidéo"""
-    creator = VideoCreator()
-    return creator.create_professional_video(content_data)
+    """Fonction d'export principale pour les Shorts."""
+    try:
+        creator = VideoCreator()
+        return creator.create_professional_video(content_data)
+    except Exception as e:
+        print(f"❌ Erreur création vidéo: {e}")
+        return None
 
-# --- Bloc de Test (Non modifié, nécessite toujours les mocks pour fonctionner) ---
-# ...
+# --- TEST ---
+if __name__ == "__main__":
+    print("🧪 Test VideoCreator Shorts...")
+    
+    if not HAS_MOVIEPY:
+        print("❌ MoviePy requis pour les tests")
+        sys.exit(1)
+    
+    try:
+        # Données de test
+        test_content = {
+            'title': '🚨 TOP 5 SECRETS CHOCS DE LA SCIENCE (PARTIE 1) 💀',
+            'script': 'Numéro 5 : La révélation secrète. Numéro 4 : La découverte incroyable. Numéro 3 : La vérité cachée.',
+            'keywords': ['science', 'top5', 'secrets', 'choc'],
+            'content_type': 'top10_shorts'
+        }
+        
+        creator = VideoCreator()
+        result = creator.create_professional_video(test_content)
+        
+        if result and os.path.exists(result):
+            print(f"✅ Test réussi! Shorts créé: {result}")
+        else:
+            print("❌ Test échoué")
+            
+    except Exception as e:
+        print(f"❌ Erreur test: {e}")
+        import traceback
+        traceback.print_exc()

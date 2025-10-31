@@ -1,7 +1,9 @@
+# auto_content_engine.py (VERSION CORRIGÉE)
+
 #!/usr/bin/env python3
 """
 YouTube Auto Factory - Orchestrateur Principal
-Système de génération automatique de contenu vidéo pour YouTube
+Version corrigée pour l'intégration musique
 """
 
 import os
@@ -17,22 +19,18 @@ from typing import Dict, Any, Tuple, List, Optional
 # =============================================================================
 
 def setup_imports():
-    """Configure les chemins d'import pour fonctionner dans tous les environnements."""
+    """Configure les chemins d'import."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
     
-    # Ajouter la racine du projet au Python path
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
     
-    # Ajouter le dossier content_factory lui-même
     if script_dir not in sys.path:
         sys.path.insert(0, script_dir)
 
-# Configurer les imports avant tout
 setup_imports()
 
-# Maintenant importer les modules
 try:
     from content_factory.content_generator import generate_daily_contents
     from content_factory.video_creator import VideoCreator
@@ -42,39 +40,24 @@ try:
     IMPORT_SUCCESS = True
 except ImportError as e:
     print(f"❌ ERREUR CRITIQUE - Import impossible: {e}")
-    print("📁 Structure des dossiers:")
-    for root, dirs, files in os.walk("."):
-        level = root.replace(".", "").count(os.sep)
-        indent = " " * 2 * level
-        print(f"{indent}{os.path.basename(root)}/")
-        subindent = " " * 2 * (level + 1)
-        for file in files:
-            if file.endswith(".py"):
-                print(f"{subindent}{file}")
     IMPORT_SUCCESS = False
 
 # =============================================================================
-# FONCTIONS PRINCIPALES
+# FONCTIONS PRINCIPALES CORRIGÉES
 # =============================================================================
 
 def get_current_slot(slot_hours: List[int]) -> int:
-    """
-    Détermine le créneau actuel basé sur l'heure.
-    """
+    """Détermine le créneau actuel."""
     current_hour = datetime.now().hour
     
-    # Si l'heure actuelle est après le dernier créneau, retourner le dernier
     if current_hour >= slot_hours[-1]:
         return len(slot_hours) - 1
     
-    # Trouver le créneau actuel
     for i, hour in enumerate(slot_hours):
         if current_hour < hour:
             return i - 1 if i > 0 else 0
     
-    # Par défaut, premier créneau
     return 0
-
 
 def create_video_for_slot(
     slot_number: int, 
@@ -85,6 +68,7 @@ def create_video_for_slot(
 ) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
     """
     Crée une vidéo pour un créneau spécifique.
+    Version corrigée avec transmission des données pour la musique.
     """
     slot_display = slot_number + 1
     target_hour = slot_hours[slot_number]
@@ -108,9 +92,10 @@ def create_video_for_slot(
         
         print(f"📝 Titre: {content_data['title']}")
         print(f"📊 Type: {content_data.get('content_type', 'N/A')}")
-        print(f"🎯 Thème: {content_data.get('theme', 'N/A')}")
+        print(f"🎯 Thème: {content_data.get('category', 'N/A')}")
+        print(f"🔑 Mots-clés: {', '.join(content_data.get('keywords', [])[:5])}...")
         
-        # CORRECTION : VideoCreator sans argument config
+        # CRITIQUE: Passage de content_data complet au VideoCreator
         creator = VideoCreator()
         video_path = creator.create_professional_video(content_data)
         
@@ -135,7 +120,6 @@ def create_video_for_slot(
             traceback.print_exc()
         return None, None
 
-
 def create_and_process_videos(
     mode: str,
     slot_hours: List[int], 
@@ -146,6 +130,7 @@ def create_and_process_videos(
 ) -> List[Dict[str, Any]]:
     """
     Orchestre la création et le traitement des vidéos.
+    Version corrigée pour l'intégration complète.
     """
     successful_videos = []
     
@@ -156,7 +141,6 @@ def create_and_process_videos(
     # 1. Génération du contenu
     try:
         print(f"🔄 Génération en cours...")
-        # CORRECTION : generate_daily_contents sans argument force_run
         all_daily_contents = generate_daily_contents()
         
         if not all_daily_contents:
@@ -200,7 +184,7 @@ def create_and_process_videos(
                 'path': video_path,
                 'title': content_data['title'],
                 'slot': slot + 1,
-                'content_data': content_data,
+                'content_data': content_data,  # IMPORTANT: Garder toutes les données
                 'created_at': datetime.now().isoformat()
             })
             print(f"🎉 Créneau {slot + 1} - SUCCÈS")
@@ -214,15 +198,12 @@ def create_and_process_videos(
     
     return successful_videos
 
-
 def handle_upload(
     successful_videos: List[Dict[str, Any]], 
     mode: str, 
     config: Dict[str, Any]
 ) -> bool:
-    """
-    Gère l'upload YouTube des vidéos.
-    """
+    """Gère l'upload YouTube des vidéos."""
     if not successful_videos:
         print("📭 Aucune vidéo à uploader")
         return False
@@ -239,11 +220,10 @@ def handle_upload(
     print(f"📁 Fichier: {video_to_upload['path']}")
     
     try:
-        # CORRECTION : YouTubeUploader sans argument config
         uploader = YouTubeUploader()
         result = uploader.upload_video(
             video_to_upload['path'], 
-            video_to_upload['content_data']
+            video_to_upload['content_data']  # Passage des données complètes
         )
         
         if result:
@@ -257,11 +237,8 @@ def handle_upload(
         print(f"❌ ERREUR - Upload YouTube: {e}")
         return False
 
-
 def setup_directories(config: Dict[str, Any]) -> bool:
-    """
-    Crée et vérifie les répertoires nécessaires.
-    """
+    """Crée et vérifie les répertoires nécessaires."""
     print("\n📁 CONFIGURATION DES RÉPERTOIRES")
     print("-" * 40)
     
@@ -274,7 +251,8 @@ def setup_directories(config: Dict[str, Any]) -> bool:
             os.path.join(output_root, paths_config.get('AUDIO_DIR', 'audio')),
             os.path.join(output_root, paths_config.get('VIDEO_DIR', 'videos')),
             os.path.join(output_root, paths_config.get('IMAGE_DIR', 'images')),
-            os.path.join(output_root, paths_config.get('LOG_DIR', 'logs'))
+            os.path.join(output_root, paths_config.get('LOG_DIR', 'logs')),
+            "assets/music"  # NOUVEAU: Dossier pour les musiques
         ]
         
         for directory in directories:
@@ -291,7 +269,6 @@ def setup_directories(config: Dict[str, Any]) -> bool:
     except Exception as e:
         print(f"❌ ERREUR - Configuration des répertoires: {e}")
         return False
-
 
 def parse_arguments() -> argparse.Namespace:
     """Parse les arguments de ligne de commande."""
@@ -320,7 +297,6 @@ def parse_arguments() -> argparse.Namespace:
     )
     
     return parser.parse_args()
-
 
 def main() -> bool:
     """Fonction principale du moteur de contenu."""
@@ -352,6 +328,7 @@ def main() -> bool:
         print(f"🔄 Force run: {force_run}")
         print(f"⏰ Créneaux: {slot_hours}")
         print(f"⏱️ Pause: {slot_pause}s")
+        print(f"🎵 Musique: {'✅ ACTIVÉE' if os.getenv('BACKGROUND_MUSIC_ENABLED', 'false').lower() == 'true' else '❌ DÉSACTIVÉE'}")
         
         # PRÉPARATION
         if not setup_directories(config):
@@ -380,6 +357,7 @@ def main() -> bool:
         
         print(f"🎯 Créneaux traités: {success_count}/{total_slots}")
         print(f"📤 Upload YouTube: {'✅ SUCCÈS' if upload_success else '⚠️ NON RÉALISÉ'}")
+        print(f"🎵 Musique: {'✅ INTÉGRÉE' if success_count > 0 and os.getenv('BACKGROUND_MUSIC_ENABLED', 'false').lower() == 'true' else '❌ ABSENTE'}")
         
         if successful_videos:
             print("\n📋 VIDÉOS PRODUITES:")
@@ -401,7 +379,6 @@ def main() -> bool:
             print("\n🔍 Stack trace:")
             traceback.print_exc()
         return False
-
 
 if __name__ == "__main__":
     success = main()

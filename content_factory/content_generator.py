@@ -1,4 +1,4 @@
-# content_factory/content_generator.py (Intégration config.yaml)
+# content_factory/content_generator.py (VERSION BRAINROT TOP 10)
 
 import random
 import sys
@@ -7,75 +7,124 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from content_factory.config_loader import ConfigLoader 
 
-# --- DONNÉES STATIQUES DU CONTENU FILTRÉ et ÉLARGI ---
-# Ces données définissent le contenu thématique
-BASE_TOPICS = {
+# --- DONNÉES STATIQUES OPTIMISÉES POUR TOP 10 ---
+TOP_10_TOPICS = {
     'science': [
-        "L'ADN et la Génétique : Les Bases", "Les Mystères des Trous Noirs et des Galaxies", 
-        "Les Secrets de la Lumière et de l'Optique", "La Physique Quantique : Introduction",
-        "La Création des Éléments Chimiques", "La Vie Extraterrestre : Recherche Scientifique",
-        "Le Temps et l'Espace : La Théorie de la Relativité", "L'Origine de l'Univers et le Big Bang",
-        "Les Superconducteurs et leurs Applications", "La Cristallographie et la Structure des Solides",
+        "SECRETS CHOCS DE LA SCIENCE QUE PERSONNE NE CONNAÎT",
+        "DÉCOUVERTES SCIENTIFIQUES QUI VONT TOUT CHANGER",
+        "INVENTIONS RÉVOLUTIONNAIRES QUI VONT BOULEVERSER NOTRE VIE",
+        "PHÉNOMÈNES NATURELS LES PLUS FOUS DE LA PLANÈTE",
+        "THÉORIES SCIENTIFIQUES QUI DEFIENT LA LOGIQUE",
+        "EXPÉRIENCES LES PLUS DANGEREUSES DE L'HISTOIRE",
+        "MIRACLES MÉDICAUX QUE LA SCIENCE NE PEUT EXPLIQUER",
+        "PROPHÉTIES TECHNOLOGIQUES QUI SE RÉALISENT",
+        "MYSTÈRES DE L'UNIVERS QUI RESTENT INEXPLIQUÉS",
+        "INVENTIONS ACCIDENTELLES DEVENUES RÉVOLUTIONNAIRES"
     ],
     'technologie': [
-        "L'Intelligence Artificielle et le Machine Learning", "Les Innovations des Ordinateurs Quantiques", 
-        "La Robotique et les Systèmes Autonomes", "La Réalité Virtuelle dans l'Éducation",
-        "La 6G et le Futur des Réseaux Mobiles", "L'Éthique de la Technologie et de l'AI",
-        "L'Impression 3D Industrielle", "Le Métavers et ses Applications Non Sociales",
-        "Les Nanotechnologies et les Nano-Matériaux", "La Cryptographie Post-Quantique",
-    ],
-    'environnement': [
-        "Les Énergies Renouvelables : Solaire et Éolien", "La Biodiversité et les Écosystèmes Terrestres",
-        "L'Hydrologie et la Gestion de l'Eau", "La Géothermie : L'Énergie de la Terre",
-        "La Reforestation par la Technologie", "Les Techniques de Dépollution des Océans", 
-        "L'Agriculture Verticale et la Permaculture", "La Science des Matériaux Durables",
-        "Le Stockage d'Énergie (Batteries et Piles à Combustible)", "La Modélisation Climatique : Les Bases",
-    ],
-    'espace': [
-        "La Colonisation de Mars : Défis Techniques", "Les Prochaines Missions Spatiales (Artemis)",
-        "Les Exoplanètes et la Zone Habitable", "Le Fonctionnement de la Station Spatiale Internationale",
-        "Les Satellites et l'Observation Terrestre", "L'Histoire des Fusées et des Lanceurs",
-        "Les Géantes Gazeuses : Jupiter et Saturne", "Les Astéroïdes et les Comètes : Composition",
-        "Le Télescope Spatial James Webb (JWST) : Découvertes", "La Physique des Mouvements Stellaires",
+        "GADGETS TECHNOLOGIQUES LES PLUS FOUS DE 2024",
+        "INNOVATIONS TECH QUI VONT RENDRE VOS APPAREILS OBSOLÈTES",
+        "SECRETS DES GÉANTS DE LA TECH QU'ILS CACHENT AU PUBLIC",
+        "PRÉDICTIONS TECHNOLOGIQUES QUI VONT VOUS CHOQUER",
+        "INVENTIONS QUI VONT CHANGER LE MONDE D'ICI 2030",
+        "HACKS TECHNOLOGIQUES QUE SEULS LES PROS CONNAISSENT",
+        "APPAREILS DU FUTUR DÉJÀ EN TEST SECRET",
+        "RÉVÉLATIONS SUR L'IA QUI VONT VOUS EFFRAYER",
+        "TECHNOLOGIES MILITAIRES CLASSÉES SECRET DÉFENSE",
+        "INVENTIONS BIZARRES QUI ONT RAPPORTÉ DES MILLIONS"
     ],
     'sante_bienetre': [
-        "Les Bases de la Nutrition Scientifique", "Le Fonctionnement du Sommeil et du Repos",
-        "La Neuroplasticité et l'Apprentissage", "Les Bienfaits de l'Activité Physique sur le Cerveau",
-        "Le Rôle du Microbiote Intestinal sur le Bien-être", "La Psychologie Positive et la Science du Bonheur",
-        "La Prévention et les Bases de l'Immunologie", "Les Dernières Techniques d'Imagerie Médicale",
-        "L'Horloge Biologique (Rythmes Circadiens)", "L'Impact de la Méditation sur le Cerveau",
+        "SECRETS DE MÉDECINS QUE VOUS NE DEVEZ PAS IGNORER",
+        "HABITUDES QUI DÉTRUISENT VOTRE SANTÉ SANS QUE VOUS LE SACHIEZ",
+        "SUPER-ALIMENTS QUI GUÉRISSENT VRAIMENT",
+        "MENTIRES DE L'INDUSTRIE PHARMACEUTIQUE RÉVÉLÉES",
+        "MÉTHODES ANTI-ÂGE QUE LES CÉLÉBRITÉS CACHENT",
+        "POISONS QUOTIDIENS DANS VOTRE ALIMENTATION",
+        "TECHNIQUES DE GUÉRISON QUE LA MÉDECINE REFUSE",
+        "SIGNES QUE VOTRE CORPS ENVOIE ET QUE VOUS IGNOREZ",
+        "COMPLÉMENTS ALIMENTAIRES QUI FONCTIONNENT VRAIMENT",
+        "SECRETS POUR VIVRE JUSQU'À 100 ANS EN BONNE SANTÉ"
+    ],
+    'psychologie': [
+        "SIGNES QUE QUELQU'UN VOUS MANIPULE EN CE MOMENT",
+        "TECHNIQUES DE PERSUASION UTILISÉES PAR LES PROS",
+        "SECRETS DU CERVEAU QUE LA SCIENCE VIENT DE DÉCOUVRIR",
+        "HABITUDES QUI DÉTRUISENT VOTRE MENTAL À VOTRE INSU",
+        "POUVOIRS MENTAUX QUE VOUS POSSÉDEZ SANS LE SAVOIR",
+        "SIGNES CACHÉS DU LANGAGE CORPOREL QUI TRAHISSENT TOUT",
+        "TRAUMAS SECRETS QUI CONTRÔLENT VOS DÉCISIONS",
+        "ILLUSIONS MENTALES QUI VOUS TROMPENT QUOTIDIENNEMENT",
+        "SECRETS POUR LIRE DANS LES PENSÉES DES GENS",
+        "MÉTHODES POUR EFFACER LES MAUVAIS SOUVENIRS"
+    ],
+    'argent_business': [
+        "SECRETS POUR DEVENIR RICHE QUE LES MILLIONNAIRES CACHENT",
+        "ERREURS FINANCIÈRES QUI VOUS EMPÊCHENT DE VOUS ENRICHIR",
+        "MÉTHODES POUR GAGNER DE L'ARGENT PENDANT VOTRE SOMMEIL",
+        "INVESTISSEMENTS QUI ONT RAPPORTÉ 1000% EN 1 AN",
+        "SECRETS DES STARTUPS QUI ONT RAPPORTÉ DES MILLIONS",
+        "HABITUDES DES GENS RICHES QUE VOUS POUVEZ COPIER",
+        "ARNAQUES FINANCIÈRES DONT VOUS ÊTES VICTIME",
+        "CRYPTOS QUI VONT EXPLOSER EN 2024",
+        "BUSINESS EN LIGNE QUI MARCHENT VRAIMENT EN 2024",
+        "SECRETS POUR NÉGOCIER DES SALAIRES DE FOU"
     ]
 }
 
-# Modèles pour les variations de titre et d'angle
-TITLE_TEMPLATES = {
-    'prefixes': {
-        'science': ["Découverte : ", "Science : ", "Innovation : ", "Révolution : "],
-        'technologie': ["Tech : ", "Future : ", "Digital : ", "Innovation : "],
-        'environnement': ["Écolo : ", "Durable : ", "Nature : ", "Planète : "],
-        'espace': ["Espace : ", "Cosmos : ", "Mission : ", "Découverte : "],
-        'sante_bienetre': ["Santé : ", "Bien-être : ", "Cerveau : ", "Science : "]
-    },
-    'suffixes': {
-        'science': [" - La Vérité", " Révélé", " - Les Secrets", " Expliqué"],
-        'technologie': [" - Le Futur", " Révolution", " - Les Tendances", " Moderne"],
-        'environnement': [" - Solution", " - Avenir", " - Défi", " - Espoir"],
-        'espace': [" - Les Secrets", " - Le Voyage", " - La Nouvelle Ère", " Expliqué"],
-        'sante_bienetre': [" - Avancée", " - Solution", " - Les Bases", " Scientifique"],
-    },
-    'angles': {
-        'science': ["approche éducative et pédagogique", "angle découverte et innovation", "perspective historique et évolution", "focus applications pratiques"],
-        'technologie': ["impact sur la société moderne", "innovations récentes et tendances", "comparaison technologies anciennes/nouvelles", "perspective futuriste"],
-        'environnement': ["solutions concrètes et actions", "impact sur la biodiversité", "innovations durables", "implication citoyenne"],
-        # CORRECTION APPLIQUÉE ICI (ligne 70 de votre code initial)
-        'espace': ["défis techniques et ingénierie", "découvertes astronomiques récentes", "perspective scientifique et hypothèses", "focus sur l'exploration humaine"],
-        'sante_bienetre': ["bases scientifiques et études", "conseils pratiques pour le quotidien", "mécanismes biologiques et chimiques", "perspective d'amélioration de la qualité de vie"],
-    }
+# --- PHRASES ACCROCHE POUR LES TOP 10 ---
+BRAINROT_PHRASES = {
+    'intros': [
+        "🚨 ATTENTION ! Ce que vous allez découvrir va totalement vous choquer...",
+        "💀 Ce top 10 va vous retourner le cerveau, vous n'êtes pas prêts !",
+        "🔥 Ce que nous allons révéler dans cette vidéo est absolument interdit...",
+        "⚠️ Les autorités ne veulent pas que vous voyiez ce contenu...",
+        "🎯 Ce top 10 va changer votre vie à jamais, regardez jusqu'au bout !",
+        "💥 Ce que vous allez voir va vous faire remettre en question toute votre existence...",
+        "🔞 Contenu sensible : ce top 10 contient des vérités qui dérangent...",
+        "⚡ Prévenez vos amis, ce top 10 va faire exploser Internet !",
+        "🧠 Ce que vous allez découvrir va vous rendre plus intelligent instantanément...",
+        "💸 Ce top 10 va vous apprendre à devenir riche, ne le ratez pas !"
+    ],
+    'transitions': [
+        "Mais avant de passer au point suivant, likez la vidéo si vous êtes choqué !",
+        "Ce point est incroyable, mais attendez de voir la suite...",
+        "Vous pensez avoir tout vu ? Vous n'êtes pas au bout de vos surprises !",
+        "Commentez 'CHOC' si vous ne vous y attendiez pas du tout !",
+        "Ce point va faire débat dans les commentaires, j'en suis sûr !",
+        "Vous allez halluciner quand vous verrez le point suivant...",
+        "Mais ce n'est rien comparé à ce qui arrive après...",
+        "Likez si vous voulez connaître le point numéro 1 tout de suite !",
+        "Ce point est déjà fou, mais le prochain va vous détruire !",
+        "Abonnez-vous pour ne pas rater le point qui va tout changer !"
+    ],
+    'cliffhangers': [
+        "Le point numéro 1 va vous retourner le cerveau, mais vous le verrez dans la partie 2 !",
+        "Le meilleur est à venir dans la partie 2, vous n'êtes pas prêts !",
+        "Le point numéro 1 est tellement choquant qu'il mérite sa propre vidéo !",
+        "La suite de ce top 10 va vous détruire, cliquez sur la partie 2 maintenant !",
+        "Le numéro 1 va vous faire halluciner, ne manquez pas la partie 2 !",
+        "Le point final est tellement incroyable qu'on lui consacre une vidéo entière !",
+        "Vous voulez connaître le point le plus choquant ? C'est dans la partie 2 !",
+        "Le numéro 1 va tout changer, regardez la partie 2 immédiatement !",
+        "Le point ultime est tellement fort qu'il nécessite une vidéo séparée !",
+        "La révélation finale va vous exploser à la figure dans la partie 2 !"
+    ],
+    'cta_part2': [
+        "📺 CLIQUEZ MAINTENANT SUR LA PARTIE 2 POUR LA SUITE CHOQUANTE !",
+        "🔥 LA PARTIE 2 VA VOUS DÉTRUIRE, NE LA MANQUEZ PAS !",
+        "🚨 LA RÉVÉLATION FINALE EST DANS LA PARTIE 2, CLIQUEZ !",
+        "💀 LE POINT NUMÉRO 1 EST TELLEMENT FOU QU'IL EST DANS LA PARTIE 2 !",
+        "⚡ VOUS VOULEZ SAVOIR LE MEILLEUR ? C'EST DANS LA PARTIE 2 !",
+        "🎯 LA SUITE VA VOUS CHOQUER, CLIQUEZ SUR LA PARTIE 2 !",
+        "💥 LE POINT ULTIME VOUS ATTEND DANS LA PARTIE 2 !",
+        "🧠 LA RÉVÉLATION FINALE EST TELLEMENT INCROYABLE QU'ELLE EST DANS LA PARTIE 2 !",
+        "💸 LE SECRET ULTIME POUR DEVENIR RICHE EST DANS LA PARTIE 2 !",
+        "🔞 LE CONTENU LE PLUS SENSIBLE EST DANS LA PARTIE 2, CLIQUEZ !"
+    ]
 }
 
-
 class ContentGenerator:
-    def __init__(self, base_topics: Dict = BASE_TOPICS):
+    def __init__(self, base_topics: Dict = TOP_10_TOPICS):
         self.base_topics = base_topics
         self.config = ConfigLoader().get_config()
         self.daily_variations = self._generate_daily_variations()
@@ -86,208 +135,338 @@ class ContentGenerator:
         return int(datetime.now().strftime("%Y%m%d"))
         
     def _generate_daily_variations(self) -> Dict[int, Dict[str, Any]]:
-        """Génère un pool de sujets pour la journée, basé sur la seed quotidienne."""
+        """Génère 2 sujets TOP 10 pour la journée (un pour chaque paire de vidéos)."""
         seed = self.get_daily_seed()
         random.seed(seed)
-        variations = {}
-        categories = list(self.base_topics.keys())
         
         num_slots = self.config['WORKFLOW'].get('DAILY_SLOTS', 4)
+        variations = {}
         
-        # Choisir les catégories, puis un sujet unique par catégorie
-        categories_for_day = random.sample(categories, min(num_slots, len(categories)))
+        # Sélectionner 2 catégories différentes pour la journée
+        categories = list(self.base_topics.keys())
+        selected_categories = random.sample(categories, min(2, len(categories)))
         
-        for i, category in enumerate(categories_for_day):
-            topic = random.choice(self.base_topics[category])
-            variations[i] = {
-                'category': category,
-                'base_topic': topic,
-                'titles': self._generate_title_variations(topic, category),
-                'angle': random.choice(TITLE_TEMPLATES['angles'].get(category, ["angle informatif"])),
+        # Premier sujet TOP 10 (slots 0 et 1)
+        topic1 = random.choice(self.base_topics[selected_categories[0]])
+        variations[0] = {
+            'category': selected_categories[0],
+            'base_topic': topic1,
+            'is_part1': True,
+            'daily_seed': seed
+        }
+        variations[1] = {
+            'category': selected_categories[0],
+            'base_topic': topic1,
+            'is_part1': False,
+            'daily_seed': seed
+        }
+        
+        # Deuxième sujet TOP 10 (slots 2 et 3) si nécessaire
+        if num_slots > 2:
+            topic2 = random.choice(self.base_topics[selected_categories[1]])
+            variations[2] = {
+                'category': selected_categories[1],
+                'base_topic': topic2,
+                'is_part1': True,
+                'daily_seed': seed
+            }
+            variations[3] = {
+                'category': selected_categories[1],
+                'base_topic': topic2,
+                'is_part1': False,
                 'daily_seed': seed
             }
         
-        # Si moins de sujets que de slots, on répète les sujets aléatoirement
-        if len(variations) < num_slots:
-            original_variations = list(variations.values())
-            for i in range(len(variations), num_slots):
-                variations[i] = random.choice(original_variations)
-                
         return variations
     
-    def _generate_title_variations(self, base_topic: str, category: str) -> List[str]:
-        """Crée plusieurs variations de titres pour augmenter le CTR."""
-        prefixes = TITLE_TEMPLATES['prefixes'].get(category, [""])
-        suffixes = TITLE_TEMPLATES['suffixes'].get(category, [""])
-        variations = []
-        # Générer 4 variations
-        for _ in range(4): 
-            prefix = random.choice(prefixes) if prefixes else ""
-            suffix = random.choice(suffixes) if suffixes else ""
-            variations.append(f"{prefix}{base_topic}{suffix}".strip())
-        return variations
-    
-    def _get_script_detail(self, category: str, detail_type: str) -> str:
-        # Détails du script (basés sur le code fourni)
-        DETAILS_MAP = {
-            'science': {
-                'details': "Les dernières études confirment l'importance de ces découvertes.",
-                'impacts': "Ces avancées pourraient bien révolutionner notre quotidien dans les prochaines années.",
-            },
-            'technologie': {
-                'details': "La technologie évolue à une vitesse impressionnante. L'innovation ouvre des perspectives incroyables.",
-                'impacts': "L'intelligence artificielle va transformer tous les secteurs.",
-            },
-            'environnement': {
-                'details': "Les données scientifiques récentes montrent l'urgence d'agir pour préserver notre écosystème.",
-                'impacts': "Ces solutions pourraient sauver des écosystèmes entiers.",
-            },
-            'espace': {
-                'details': "Ce chapitre de l'exploration spatiale est riche en défis techniques.",
-                'impacts': "L'exploration de l'espace nous apporte des innovations directement applicables sur Terre.",
-            },
-            'sante_bienetre': {
-                'details': "La recherche fondamentale ouvre de nouvelles voies thérapeutiques et de bien-être.",
-                'impacts': "Ces progrès améliorent la qualité de vie et la longévité de millions de personnes.",
-            }
-        }
-        return DETAILS_MAP.get(category, {}).get(detail_type, "Des recherches continuent de progresser à un rythme accéléré.")
+    def _generate_brainrot_title(self, base_topic: str, category: str, is_part1: bool, slot_number: int) -> str:
+        """Génère des titres putaclics optimisés algorithme."""
         
-    def generate_script(self, base_topic: str, category: str, angle: str, slot_number: int) -> str:
-        # La logique de génération du script reste identique pour maintenir l'auto-suffisance
-
-        introductions = [
-            f"Aujourd'hui, explorons ensemble **{base_topic.lower()}**.",
-            f"Plongeons dans l'univers fascinant de **{base_topic.lower()}**.",
-            f"Découvrons les secrets de **{base_topic.lower()}**.",
-            f"Partons à la découverte de **{base_topic.lower()}**."
-        ]
-        conclusions = [
-            "Cette exploration nous montre l'importance de continuer à rechercher et innover.",
-            "Le futur s'annonce passionnant avec ces avancées remarquables.",
-            "Restons curieux et ouverts à ces découvertes qui façonnent notre monde.",
-            "Chaque progrès nous rapproche d'une compréhension plus complète de notre univers."
-        ]
-        
-        main_content_templates = {
-            'science': [f"La science derrière {base_topic.lower()} révèle des mécanismes extraordinaires. ({self._get_script_detail('science', 'details')})",],
-            'technologie': [f"Les défis techniques de {base_topic.lower()} sont immenses. ({self._get_script_detail('technologie', 'details')})",],
-            'environnement': [f"L'enjeu de l'environnement est crucial pour notre avenir. ({self._get_script_detail('environnement', 'details')})",],
-            'espace': [f"Ce chapitre de l'exploration spatiale est riche en découvertes. ({self._get_script_detail('espace', 'details')})",],
-            'sante_bienetre': [f"Les bases scientifiques du bien-être sont primordiales. ({self._get_script_detail('sante_bienetre', 'details')})",],
+        part_indicators = {
+            True: ["(PARTIE 1)", "(TOP 10-6)", "(PREMIÈRE PARTIE)", "(DÉBUT CHOQUANT)"],
+            False: ["(PARTIE 2)", "(TOP 5-1)", "(SUITE EXPLOSIVE)", "(FIN INCROYABLE)"]
         }
         
-        main_content = random.choice(main_content_templates.get(category, 
-                                                               [f"Le sujet de {base_topic.lower()} offre des perspectives fascinantes et est traité sous l'angle de **{angle}**."]))
-
-        introduction = introductions[slot_number % len(introductions)]
-        conclusion = conclusions[slot_number % len(conclusions)]
+        emoji_combos = ["🚨", "💀", "🔥", "⚠️", "🎯", "💥", "🔞", "⚡", "🧠", "💸"]
         
-        script = f"{introduction}\n\n{main_content}\n\n{conclusion}"
+        title_templates_part1 = [
+            f"{random.choice(emoji_combos)}TOP 10 {base_topic} {random.choice(part_indicators[True])}",
+            f"{random.choice(emoji_combos)}LES 10 {base_topic} {random.choice(part_indicators[True])}",
+            f"{random.choice(emoji_combos)}10 {base_topic} QUI VONT VOUS CHOQUER {random.choice(part_indicators[True])}",
+            f"{random.choice(emoji_combos)}DÉCOUVREZ LES 10 {base_topic} {random.choice(part_indicators[True])}"
+        ]
         
-        return script
+        title_templates_part2 = [
+            f"{random.choice(emoji_combos)}LE MEILLEUR ARRIVE ! {base_topic} {random.choice(part_indicators[False])}",
+            f"{random.choice(emoji_combos)}LA SUITE CHOQUANTE ! {base_topic} {random.choice(part_indicators[False])}",
+            f"{random.choice(emoji_combos)}VOUS N'ÊTES PAS PRÊTS ! {base_topic} {random.choice(part_indicators[False])}",
+            f"{random.choice(emoji_combos)}LA RÉVÉLATION FINALE ! {base_topic} {random.choice(part_indicators[False])}"
+        ]
+        
+        templates = title_templates_part1 if is_part1 else title_templates_part2
+        return random.choice(templates)
     
-    def _generate_keywords(self, base_topic: str, category: str) -> List[str]:
-        """Génère des mots-clés pour l'ImageManager et le YouTubeUploader."""
+    def _generate_top10_points(self, category: str, base_topic: str, is_part1: bool) -> List[str]:
+        """Génère les points du TOP 10 selon la partie."""
         
-        # Nettoyer le sujet de base (enlever les articles, les verbes d'état, les symboles)
-        cleaned_topic = re.sub(r'[\'":\s]+', ' ', base_topic).strip()
-        cleaned_topic = re.sub(r'\b(l\'|la|le|les|des|du|un|une|et|à|de|en|aux|avec|sur|ou|par|dans|qui|que)\b', '', cleaned_topic, flags=re.IGNORECASE).strip()
+        # Points génériques adaptables à toutes les catégories
+        all_points = [
+            "La révélation secrète que les experts cachent au public",
+            "L'astuce incroyable que seuls les initiés connaissent", 
+            "Le phénomène bizarre que la science ne peut expliquer",
+            "La technique révolutionnaire qui change toutes les règles",
+            "Le secret choquant qui va vous faire tout remettre en question",
+            "La découverte accidentelle devenue révolutionnaire",
+            "La méthode interdite qui fonctionne vraiment",
+            "La vérité cachée que personne n'ose révéler",
+            "Le hack génial qui va vous simplifier la vie",
+            "La révélation ultime qui va tout changer"
+        ]
         
-        # Mots-clés basés sur le sujet et la catégorie
-        topic_tags = [tag.strip() for tag in cleaned_topic.split() if len(tag) > 3]
+        if is_part1:
+            # Points 10 à 6 (accrocheurs mais pas les meilleurs)
+            return all_points[5:10]  # Points 10 à 6
+        else:
+            # Points 5 à 1 (les meilleurs pour la fin)
+            return all_points[0:5]   # Points 5 à 1
+    
+    def generate_script(self, base_topic: str, category: str, is_part1: bool, slot_number: int) -> str:
+        """Génère un script brainrot ultra-optimisé pour la rétention."""
         
-        # Mots-clés spécifiques à la catégorie
-        category_tags = {
-            'science': ['science', 'recherche', 'découverte', 'innovation'],
-            'technologie': ['tech', 'futur', 'numérique', 'ia', 'robotique'],
-            'environnement': ['nature', 'écologie', 'durable', 'planète', 'climat'],
-            'espace': ['cosmos', 'astronomie', 'univers', 'exploration', 'nasa'],
-            'sante_bienetre': ['santé', 'bienêtre', 'corps', 'cerveau', 'science'],
+        points = self._generate_top10_points(category, base_topic, is_part1)
+        script_lines = []
+        
+        # INTRODUCTION EXPLOSIVE
+        script_lines.append(random.choice(BRAINROT_PHRASES['intros']))
+        script_lines.append("")
+        
+        # POINTS DU TOP 10
+        start_num = 10 if is_part1 else 5
+        for i, point in enumerate(points):
+            point_num = start_num - i
+            script_lines.append(f"#{point_num} - {point}")
+            script_lines.append("")
+            
+            # Ajouter une phrase d'explication punchy
+            explanation = self._generate_point_explanation(category, point_num)
+            script_lines.append(explanation)
+            script_lines.append("")
+            
+            # Transition/CTA toutes les 2 points
+            if i < len(points) - 1 and i % 2 == 0:
+                script_lines.append(random.choice(BRAINROT_PHRASES['transitions']))
+                script_lines.append("")
+        
+        # CONCLUSION AVEC CLIFFHANGER OU CTA
+        if is_part1:
+            script_lines.append("🎯 MAIS ATTENDEZ... LE MEILLEUR EST À VENIR !")
+            script_lines.append("")
+            script_lines.append(random.choice(BRAINROT_PHRASES['cliffhangers']))
+            script_lines.append("")
+            script_lines.append("👉 " + random.choice(BRAINROT_PHRASES['cta_part2']))
+        else:
+            script_lines.append("💥 ET VOILÀ ! LE POINT NUMÉRO 1 QUI CHANGE TOUT !")
+            script_lines.append("")
+            script_lines.append("🔥 LIKEZ SI VOUS ÊTES CHOQUÉ !")
+            script_lines.append("🔔 ABONNEZ-VOUS POUR PLUS DE CONTENU EXPLOSIF !")
+            script_lines.append("💬 COMETEZ LE POINT QUI VOUS A LE PLUS SURPRIS !")
+        
+        return "\n".join(script_lines)
+    
+    def _generate_point_explanation(self, category: str, point_num: int) -> str:
+        """Génère des explications punchy pour chaque point."""
+        
+        explanations = {
+            'science': [
+                "Les dernières recherches prouvent que c'est bien réel !",
+                "La science vient de confirmer cette incroyable découverte !",
+                "Les experts sont sans voix face à cette révélation !",
+                "Cette vérité va révolutionner notre compréhension du monde !",
+                "Les preuves sont accablantes, impossible de nier !"
+            ],
+            'technologie': [
+                "Cette technologie va rendre tout ce que vous connaissez obsolète !",
+                "Les géants de la tech tentent de cacher cette innovation !",
+                "Cette invention va changer votre quotidien à jamais !",
+                "Le futur est déjà là, et c'est incroyable !",
+                "Cette révélation va faire trembler l'industrie toute entière !"
+            ],
+            'sante_bienetre': [
+                "Votre santé ne sera plus jamais la même après ça !",
+                "Les médecins sont choqués par l'efficacité de cette méthode !",
+                "Cette découverte va prolonger votre vie de 10 ans !",
+                "Votre corps vous remerciera pour cette révélation !",
+                "La science confirme : ça marche vraiment !"
+            ],
+            'psychologie': [
+                "Votre cerveau va être bouleversé par cette révélation !",
+                "Les psychologues utilisent cette technique en secret !",
+                "Cette connaissance va changer vos relations à jamais !",
+                "Vous ne verrez plus jamais les gens de la même façon !",
+                "Votre mental va devenir invincible avec ça !"
+            ],
+            'argent_business': [
+                "Votre compte en banche va exploser avec cette méthode !",
+                "Les millionnaires utilisent cette technique depuis des années !",
+                "Votre vie financière va changer radicalement !",
+                "Cette stratégie a déjà créé des centaines de millionnaires !",
+                "Vous allez enfin comprendre comment devenir riche !"
+            ]
+        }
+        
+        category_explanations = explanations.get(category, explanations['science'])
+        return random.choice(category_explanations)
+    
+    def _generate_keywords(self, base_topic: str, category: str, is_part1: bool) -> List[str]:
+        """Génère des mots-clés trending et optimisés."""
+        
+        # Mots-clés de base
+        base_keywords = [
+            'top 10', 'choc', 'révélation', 'secret', 'choquant',
+            'incroyable', 'interdit', 'caché', 'vérité', 'explosif',
+            'brainrot', 'addictif', 'viral', 'trending', 'algorithm'
+        ]
+        
+        # Mots-clés spécifiques partie
+        part_keywords = ['partie 1', 'début', 'top 10-6'] if is_part1 else ['partie 2', 'suite', 'fin', 'top 5-1']
+        
+        # Mots-clés catégorie
+        category_keywords = {
+            'science': ['science', 'découverte', 'recherche', 'innovation'],
+            'technologie': ['tech', 'ia', 'innovation', 'futur'],
+            'sante_bienetre': ['santé', 'bienêtre', 'médecine', 'corps'],
+            'psychologie': ['psycho', 'mental', 'cerveau', 'comportement'],
+            'argent_business': ['argent', 'riche', 'business', 'millionnaire']
         }.get(category, [])
         
-        # Mots-clés longs (pour le SEO)
-        long_tags = [base_topic, category]
+        # Mots-clés trending 2024
+        trending_keywords = [
+            'viral tiktok', 'shorts', 'algorithm hack', 'youtube money',
+            'content strategy', 'views hack', 'engagement', 'ctr'
+        ]
         
-        # Suppression des doublons et application des tags globaux
-        all_tags = list(set(topic_tags + category_tags + long_tags + self.global_tags))
-        
-        # Limiter à 15 tags pour Youtube
-        return all_tags[:15]
-
+        all_keywords = base_keywords + part_keywords + category_keywords + trending_keywords + self.global_tags
+        return list(set(all_keywords))[:20]  # Limite YouTube
+    
     def generate_content(self, slot_number: int) -> Dict[str, Any]:
-        """Produit le dictionnaire de contenu complet pour un créneau donné."""
+        """Produit le contenu brainrot complet pour un créneau."""
         
-        num_variations = len(self.daily_variations)
-        if num_variations == 0:
-            # Devrait jamais arriver si BASE_TOPICS n'est pas vide
-            raise RuntimeError("Aucun sujet n'a pu être généré à partir des thèmes de base.")
-
-        # Utiliser l'index du slot pour sélectionner le sujet du jour
-        variation_key = slot_number % num_variations
-        variation = self.daily_variations[variation_key]
+        if slot_number not in self.daily_variations:
+            raise RuntimeError(f"Aucun sujet défini pour le slot {slot_number}")
         
-        title = variation['titles'][slot_number % len(variation['titles'])]
+        variation = self.daily_variations[slot_number]
+        
+        title = self._generate_brainrot_title(
+            variation['base_topic'], 
+            variation['category'], 
+            variation['is_part1'],
+            slot_number
+        )
         
         script = self.generate_script(
             variation['base_topic'], 
             variation['category'], 
-            variation['angle'],
+            variation['is_part1'],
             slot_number
         )
         
-        keywords = self._generate_keywords(variation['base_topic'], variation['category'])
+        keywords = self._generate_keywords(
+            variation['base_topic'], 
+            variation['category'], 
+            variation['is_part1']
+        )
         
-        # La description YouTube est basée sur le script + un appel à l'action
-        description = f"{script.replace('**', '')}\n\n---\n\nExplorez la science, la technologie, l'environnement et l'espace avec nous ! Abonnez-vous pour plus de découvertes fascinantes."
+        # DESCRIPTION OPTIMISÉE POUR L'ALGORITHME
+        description = self._generate_youtube_description(
+            script, title, variation['is_part1'], slot_number
+        )
         
         return {
             'title': title,
             'script': script,
-            'description': description, # NOUVEAU
-            'keywords': keywords, # NOUVEAU
+            'description': description,
+            'keywords': keywords,
             'category': variation['category'],
             'slot_number': slot_number,
-            'daily_seed': variation['daily_seed']
+            'is_part1': variation['is_part1'],
+            'daily_seed': variation['daily_seed'],
+            'content_type': 'top10_brainrot'
         }
+    
+    def _generate_youtube_description(self, script: str, title: str, is_part1: bool, slot_number: int) -> str:
+        """Génère une description YouTube ultra-optimisée."""
+        
+        # Nettoyer le script pour la description
+        clean_script = script.replace('🚨', '').replace('💀', '').replace('🔥', '').replace('🎯', '').replace('💥', '')
+        clean_script = clean_script[:300] + "..." if len(clean_script) > 300 else clean_script
+        
+        description_lines = []
+        
+        # Première ligne accrocheuse
+        description_lines.append(f"🔔 {title}")
+        description_lines.append("")
+        
+        # Script court
+        description_lines.append(clean_script)
+        description_lines.append("")
+        
+        # CTA agressif
+        description_lines.append("⬇️⬇️ ABONNE-TOI MAINTENANT ⬇️⬇️")
+        description_lines.append("")
+        description_lines.append("💖 LIKE si tu as aimé la vidéo !")
+        description_lines.append("💬 COMMENTE ton point préféré !")
+        description_lines.append("🔔 ACTIVE les notifications !")
+        description_lines.append("")
+        
+        # Référence à l'autre partie
+        if is_part1:
+            description_lines.append("🎯 REGARDE LA PARTIE 2 POUR LA SUITE EXPLOSIVE !")
+        else:
+            description_lines.append("🔥 AS-TU VU LA PARTIE 1 ? REGARDE LA TOUTE DE SUITE !")
+        
+        description_lines.append("")
+        description_lines.append("#top10 #viral #choc #révélation #brainrot")
+        
+        return "\n".join(description_lines)
 
-# --- Fonction principale d'Export ---
+# --- FONCTION PRINCIPALE ---
 def generate_daily_contents() -> List[Dict[str, Any]]:
-    """Génère le nombre de contenus définis dans la configuration."""
+    """Génère les contenus brainrot pour la journée."""
     try:
         config = ConfigLoader().get_config()
-        # Lire DAILY_SLOTS avec une valeur par défaut de 4 si la clé est manquante
-        num_slots = config['WORKFLOW'].get('DAILY_SLOTS', 4) 
+        num_slots = config['WORKFLOW'].get('DAILY_SLOTS', 4)
         
         generator = ContentGenerator()
         daily_contents = [generator.generate_content(slot) for slot in range(num_slots)]
         
+        print(f"🎯 {len(daily_contents)} contenus BRAINROT générés !")
+        for content in daily_contents:
+            part = "PARTIE 1" if content['is_part1'] else "PARTIE 2"
+            print(f"   📹 Slot {content['slot_number']}: {content['title']} ({part})")
+        
         return daily_contents
+        
     except Exception as e:
-        print(f"❌ Erreur critique dans generate_daily_contents: {e}", file=sys.stderr)
+        print(f"❌ Erreur brainrot: {e}", file=sys.stderr)
         return []
 
-# --- Bloc de Test ---
+# --- TEST ---
 if __name__ == "__main__":
-    print("🧪 Test ContentGenerator...")
+    print("🧪 TEST BRAINROT CONTENT GENERATOR...")
     try:
         contents = generate_daily_contents()
         if not contents:
-            print("❌ Test échoué: Aucune donnée générée.")
+            print("❌ Test échoué")
             sys.exit(1)
             
-        print(f"✅ {len(contents)} Contenus générés pour la journée.")
+        print(f"\n✅ {len(contents)} CONTENUS BRAINROT GÉNÉRÉS !")
         for content in contents:
-            print("-" * 50)
-            print(f"Créneau {content['slot_number'] + 1} | Catégorie: {content['category'].upper()}")
-            print(f"Titre: {content['title']}")
-            print(f"Mots-clés: {content['keywords']}")
+            print("-" * 60)
+            print(f"🎯 SLOT {content['slot_number']} | {content['category'].upper()}")
+            print(f"📹 {content['title']}")
+            print(f"🔑 MOTS-CLÉS: {', '.join(content['keywords'][:5])}...")
+            print(f"📝 SCRIPT: {content['script'][:100]}...")
             
-            # Vérification critique pour le ImageManager
-            if not content.get('keywords') or len(content['keywords']) < 3:
-                 print("⚠️ Avertissement: Moins de 3 mots-clés générés.")
-                 sys.exit(1)
-                 
     except Exception as e:
-        print(f"❌ Test échoué avec erreur: {e}")
+        print(f"❌ Test brainrot échoué: {e}")
         sys.exit(1)

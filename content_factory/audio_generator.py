@@ -1,4 +1,4 @@
-# content_factory/audio_generator.py (VERSION CORRIGÉE TTS)
+# content_factory/audio_generator.py (VERSION ULTRA-RAPIDE)
 
 import os
 import time
@@ -29,27 +29,19 @@ except ImportError:
 # --- CONSTANTES ---
 MIN_FILE_SIZE_BYTES = 2048  # 2KB minimum
 
-# Voies françaises valides pour Edge TTS
+# Voies françaises valides pour Edge TTS (testées)
 VALID_FRENCH_VOICES = [
-    "fr-FR-DeniseNeural",    # Femme - voix principale
-    "fr-FR-HenriNeural",     # Homme
-    "fr-FR-AlainNeural",     # Homme  
-    "fr-FR-BrigitteNeural",  # Femme
-    "fr-FR-CelesteNeural",   # Femme
-    "fr-FR-ClaudeNeural",    # Homme
-    "fr-FR-CoralieNeural",   # Femme
-    "fr-FR-JacquelineNeural", # Femme
-    "fr-FR-JeromeNeural",    # Homme
-    "fr-FR-JosephineNeural", # Femme
-    "fr-FR-MauriceNeural",   # Homme
-    "fr-FR-YvesNeural",      # Homme
-    "fr-FR-YvetteNeural"     # Femme
+    "fr-FR-DeniseNeural",    # Femme - rapide et claire
+    "fr-FR-HenriNeural",     # Homme - bon débit
+    "fr-FR-AlainNeural",     # Homme - naturel
+    "fr-FR-BrigitteNeural",  # Femme - énergique
+    "fr-FR-JeromeNeural",    # Homme - dynamique
 ]
 
 class AudioGenerator:
     """
-    Génère des fichiers audio avec gestion robuste du TTS.
-    Version corrigée : nettoie le texte avant synthèse vocale.
+    Génère des fichiers audio ULTRA-RAPIDES avec TTS optimisé.
+    Version corrigée : vitesse maximale + meilleure gestion d'erreurs.
     """
     
     def __init__(self):
@@ -63,371 +55,307 @@ class AudioGenerator:
         self.output_dir = safe_path_join(output_root, audio_dir)
         ensure_directory(self.output_dir)
         
-        # Paramètres
+        # PARAMÈTRES VITESSE - OPTIMISÉS POUR SHORTS
+        self.speaking_rate = self.audio_config.get('SPEAKING_RATE', 1.3)  # PLUS RAPIDE par défaut
         self.default_voice = self.audio_config.get('DEFAULT_VOICE', 'fr-FR-DeniseNeural')
-        self.speaking_rate = self.audio_config.get('SPEAKING_RATE', 1.0)
-        self.fallback_duration_s = self.config.get('VIDEO_CREATOR', {}).get('FALLBACK_DURATION_S', 10)
         
-        # Validation de la voix
-        self._validate_and_set_voice()
-        
-        print(f"🔊 AudioGenerator initialisé - Voix: {self.default_voice}")
-
-    def _validate_and_set_voice(self):
-        """Valide et corrige la voix par défaut."""
+        # Validation
         if self.default_voice not in VALID_FRENCH_VOICES:
-            print(f"⚠️ Voix '{self.default_voice}' invalide. Utilisation d'une voix valide.")
-            self.default_voice = random.choice(VALID_FRENCH_VOICES)
-            print(f"🔊 Nouvelle voix sélectionnée: {self.default_voice}")
-
-    def get_valid_voice(self) -> str:
-        """Retourne une voix française valide."""
-        return random.choice(VALID_FRENCH_VOICES)
+            self.default_voice = 'fr-FR-DeniseNeural'
+            
+        print(f"🔊 AudioGenerator ULTRA-RAPIDE - Voix: {self.default_voice}, Vitesse: {self.speaking_rate}")
 
     def clean_text_for_tts(self, text: str) -> str:
         """
-        Nettoie le texte pour que le TTS ne lise pas la ponctuation.
-        Résout le problème des 'astérisque', 'dièse', etc.
+        Nettoie AGGRESSIVEMENT le texte pour TTS rapide.
+        Supprime tout ce qui peut ralentir la synthèse.
         """
         if not text:
-            return ""
+            return "Contenu intéressant à découvrir."
             
-        # Supprimer tous les émojis et caractères spéciaux
-        text = re.sub(r'[^\w\s,.!?;:()\-@#\n]', '', text)
+        # PHASE 1: Suppression totale des émojis et symboles
+        text = re.sub(r'[^\w\s,.!?;:\-\n]', '', text)
         
-        # Remplacer les caractères probléciaux
+        # PHASE 2: Remplacement des caractères problématiques
         replacements = {
             '#': 'numéro ',
             ' - ': ' : ',
-            ' * ': ' ',
             '**': '',
             '()': '',
             '[': '',
             ']': '',
             '\"': '',
             "'": "",
-            '👉': '',
-            '🎯': '',
-            '🚨': '',
-            '💀': '',
-            '🔥': '',
-            '⚠️': '',
-            '💥': '',
-            '🔞': '',
-            '⚡': '',
-            '🧠': '',
-            '💸': '',
-            '💡': '',
-            '💖': '',
-            '💬': '',
-            '🔔': '',
-            '📺': '',
-            '📹': '',
-            '🎉': '',
-            '⬇️': '',
-            '✅': '',
-            '❌': ''
+            '  ': ' ',
         }
         
         for char, replacement in replacements.items():
             text = text.replace(char, replacement)
         
-        # Nettoyer les formats de liste
-        text = re.sub(r'(\d+)\s*-\s*', r'numéro \1 : ', text)  # "10 - Titre" → "numéro 10 : Titre"
+        # PHASE 3: Optimisation pour la vitesse
+        # Raccourcir les phrases longues
+        sentences = text.split('.')
+        short_sentences = []
         
-        # Supprimer les espaces multiples
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if len(sentence) > 100:  # Phrases trop longues
+                words = sentence.split()
+                if len(words) > 15:
+                    # Couper les phrases trop longues
+                    sentence = ' '.join(words[:15]) + '.'
+            if sentence:
+                short_sentences.append(sentence)
+        
+        text = '. '.join(short_sentences)
+        
+        # PHASE 4: Nettoyage final
         text = re.sub(r'\s+', ' ', text).strip()
         
-        # Capitaliser la première lettre
-        if text:
-            text = text[0].upper() + text[1:]
+        # Assurer un texte minimal
+        if len(text) < 20:
+            text = "Découvrez ce contenu fascinant dans la vidéo."
             
-        print(f"🔧 Texte nettoyé pour TTS: {text[:100]}...")
         return text
 
     def generate_audio(self, text: str, title: str) -> Optional[str]:
         """
-        Gère la génération audio avec texte nettoyé pour TTS.
+        Génère l'audio ULTRA-RAPIDE avec fallback agressif.
         """
         if not text or not text.strip():
-            print("❌ Texte vide fourni pour la génération audio")
-            return self._create_fallback_audio(title)
+            print("❌ Texte vide, utilisation du fallback")
+            return self._create_quick_fallback(title)
         
-        # NETTOYAGE CRITIQUE du texte pour TTS
+        # NETTOYAGE AGGRESSIF
         clean_text = self.clean_text_for_tts(text)
+        print(f"🔊 Génération RAPIDE pour: {title[:40]}...")
+        print(f"📝 Texte optimisé: {clean_text[:80]}...")
         
-        if not clean_text or len(clean_text.strip()) < 10:
-            print("⚠️ Texte trop court après nettoyage, utilisation du texte original")
-            clean_text = re.sub(r'[^\w\s,.!?;:()\-]', ' ', text)  # Nettoyage basique
-            clean_text = re.sub(r'\s+', ' ', clean_text).strip()
-        
-        print(f"🔊 Génération audio pour: {title[:50]}...")
-        print(f"📝 Texte à synthétiser: {clean_text[:100]}...")
-        
-        # Préparation des chemins
+        # Préparation chemin
         clean_title = clean_filename(title)
-        audio_path_base = safe_path_join(self.output_dir, f"audio_{clean_title}")
+        audio_path = safe_path_join(self.output_dir, f"audio_{clean_title}.mp3")
         
-        # Chaîne de fallback
-        methods = self._get_fallback_methods()
+        # ESSAI EN CHAÎNE RAPIDE (timeouts courts)
+        methods = [
+            (self._try_edge_tts_fast, HAS_EDGE_TTS),
+            (self._try_google_tts_fast, HAS_G_TTS),
+            (self._create_quick_audio, True),  # Fallback rapide
+        ]
         
-        for method, ext, condition in methods:
+        for method, condition in methods:
             if not condition:
                 continue
-
-            current_audio_path = audio_path_base + ext
-            
-            try:
-                # Utiliser le texte NETTOYÉ pour le TTS
-                result = method(clean_text, current_audio_path)
                 
-                if self._validate_audio_file(result):
-                    print(f"✅ Audio généré avec {method.__name__}: {os.path.basename(result)}")
+            try:
+                print(f"⚡ Essai: {method.__name__}")
+                result = method(clean_text, audio_path)
+                
+                if result and os.path.exists(result) and os.path.getsize(result) > MIN_FILE_SIZE_BYTES:
+                    print(f"✅ SUCCÈS avec {method.__name__}")
                     return result
                     
-                print(f"⚠️ {method.__name__} réussi mais fichier invalide")
-                
             except Exception as e:
-                print(f"❌ {method.__name__} échoué: {e.__class__.__name__}: {str(e)[:100]}")
-
-        # Dernier recours
-        return self._create_fallback_audio(clean_title)
-
-    def _get_fallback_methods(self) -> List[Tuple[Callable, str, bool]]:
-        """Retourne les méthodes de génération par ordre de préférence."""
-        return [
-            (self._try_edge_tts_async, '.mp3', HAS_EDGE_TTS),
-            (self._try_google_tts, '.mp3', HAS_G_TTS),
-            (self._create_silent_audio, '.mp3', True),
-            (self._try_system_tts, '.mp3', self._check_system_tts_available()),
-        ]
-
-    def _validate_audio_file(self, file_path: Optional[str]) -> bool:
-        """Valide qu'un fichier audio existe et a une taille suffisante."""
-        if not file_path or not os.path.exists(file_path):
-            return False
+                print(f"❌ {method.__name__} échoué: {e}")
+                continue
         
-        try:
-            file_size = os.path.getsize(file_path)
-            return file_size > MIN_FILE_SIZE_BYTES
-        except OSError:
-            return False
+        # DERNIER RECOURS ULTRA-RAPIDE
+        return self._create_quick_fallback(clean_title)
 
-    # --- MÉTHODES DE GÉNÉRATION AUDIO ---
-
-    def _try_edge_tts_async(self, text: str, audio_path: str) -> Optional[str]:
-        """Tente la génération avec Edge TTS."""
-        try:
-            return asyncio.run(self._try_edge_tts_async_coro(text, audio_path))
-        except Exception as e:
-            raise Exception(f"Edge TTS échoué: {e}")
-
-    async def _try_edge_tts_async_coro(self, text: str, audio_path: str) -> Optional[str]:
-        """Coroutine pour Edge TTS."""
+    def _try_edge_tts_fast(self, text: str, audio_path: str) -> Optional[str]:
+        """
+        Edge TTS ULTRA-RAPIDE avec timeout court.
+        """
         if not HAS_EDGE_TTS:
             raise ImportError("edge_tts non disponible")
-
-        try:
-            voice = self.get_valid_voice()
-            rate_adjustment = f"+{int((self.speaking_rate - 1.0) * 100):+}%"
+        
+        async def generate_fast():
+            # VOIX RAPIDE et paramètres optimisés
+            voice = random.choice(VALID_FRENCH_VOICES)
             
-            print(f"🔊 Edge TTS avec voix: {voice}")
-            communicate = edge_tts.Communicate(text, voice, rate=rate_adjustment)
-            await communicate.save(audio_path)
+            # CONTRÔLE DE VITESSE AGGRESSIF
+            rate_percent = min(70, int((self.speaking_rate - 1.0) * 100))  # Max +70%
+            rate_param = f"+{rate_percent}%"
             
+            print(f"🔊 Edge TTS RAPIDE - Voix: {voice}, Vitesse: {rate_param}")
+            
+            communicate = edge_tts.Communicate(text, voice, rate=rate_param)
+            
+            # TIMEOUT COURT pour éviter les blocages
+            try:
+                await asyncio.wait_for(communicate.save(audio_path), timeout=30.0)
+            except asyncio.TimeoutError:
+                raise Exception("Timeout Edge TTS")
+                
             return audio_path
-            
+        
+        try:
+            return asyncio.run(generate_fast())
         except Exception as e:
-            # Fallback sur d'autres voix en cas d'erreur
-            if "voice" in str(e).lower():
-                return await self._retry_edge_tts_with_fallback(text, audio_path)
-            raise
+            # Réessayer avec une autre voix en cas d'échec
+            return self._retry_edge_tts_fallback(text, audio_path)
 
-    async def _retry_edge_tts_with_fallback(self, text: str, audio_path: str) -> Optional[str]:
-        """Réessaye Edge TTS avec des voix alternatives."""
+    def _retry_edge_tts_fallback(self, text: str, audio_path: str) -> Optional[str]:
+        """Réessaye avec d'autres voix rapidement."""
         fallback_voices = [v for v in VALID_FRENCH_VOICES if v != self.default_voice]
         
-        for voice in fallback_voices[:3]:  # Essayer jusqu'à 3 voix
+        for voice in fallback_voices[:2]:  # Seulement 2 essais
             try:
-                print(f"🔊 Essai voix alternative: {voice}")
-                communicate = edge_tts.Communicate(text, voice)
-                await communicate.save(audio_path)
-                return audio_path
+                async def retry():
+                    communicate = edge_tts.Communicate(text, voice, rate="+50%")  # Vitesse fixe
+                    await asyncio.wait_for(communicate.save(audio_path), timeout=20.0)
+                    return audio_path
+                
+                print(f"🔄 Réessai avec voix: {voice}")
+                return asyncio.run(retry())
             except Exception:
                 continue
         
         raise Exception("Toutes les voix Edge TTS ont échoué")
 
-    def _try_google_tts(self, text: str, audio_path: str) -> Optional[str]:
-        """Tente Google TTS."""
+    def _try_google_tts_fast(self, text: str, audio_path: str) -> Optional[str]:
+        """
+        Google TTS optimisé pour la vitesse.
+        """
         if not HAS_G_TTS:
             raise ImportError("gTTS non disponible")
             
         try:
-            lang = 'fr'  # Français
-            slow = self.speaking_rate < 0.8
+            print("🔊 Google TTS RAPIDE...")
             
-            print("🔊 Google TTS en cours...")
-            tts = gTTS(text=text, lang=lang, slow=slow)
+            # Google TTS n'a pas de contrôle de vitesse fin
+            # On utilise slow=False pour la vitesse maximale
+            tts = gTTS(text=text, lang='fr', slow=False)
             tts.save(audio_path)
+            
             return audio_path
             
         except Exception as e:
             raise Exception(f"Google TTS échoué: {e}")
 
-    def _try_system_tts(self, text: str, audio_path: str) -> Optional[str]:
-        """Tente la synthèse système (espeak)."""
-        if not self._check_system_tts_available():
-            raise ImportError("espeak ou ffmpeg non disponible")
-            
+    def _create_quick_audio(self, text: str, audio_path: str) -> Optional[str]:
+        """
+        Crée un audio de fallback RAPIDE avec espeak.
+        """
         try:
-            temp_wav = audio_path.replace('.mp3', f'_{int(time.time())}.wav')
+            if not self._check_espeak_available():
+                raise ImportError("espeak non disponible")
             
-            print("🔊 Synthèse système (espeak) en cours...")
+            print("🔊 Fallback espeak RAPIDE...")
+            
+            # Fichier WAV temporaire
+            temp_wav = audio_path.replace('.mp3', '.wav')
+            
+            # PARAMÈTRES ESPEAK ULTRA-RAPIDES
+            # -s 200: débit très rapide, -p 99: hauteur normale
             subprocess.run([
-                'espeak', '-v', 'fr+f2', '-s', '150', text,
+                'espeak', '-v', 'fr+f2', '-s', '200', '-p', '99', text,
                 '-w', temp_wav
-            ], check=True, capture_output=True, timeout=30)
+            ], check=True, capture_output=True, timeout=15)
             
             if os.path.exists(temp_wav):
+                # Conversion MP3 rapide
                 subprocess.run([
                     'ffmpeg', '-i', temp_wav, '-acodec', 'libmp3lame', 
-                    '-q:a', '4', '-y', audio_path
-                ], check=True, capture_output=True, timeout=30)
+                    '-q:a', '6', '-y', audio_path  # Qualité moyenne pour vitesse
+                ], check=True, capture_output=True, timeout=10)
                 os.remove(temp_wav)
                 
             return audio_path
             
         except subprocess.TimeoutExpired:
-            raise Exception("Timeout de la synthèse système")
-        except subprocess.CalledProcessError as e:
-            raise Exception(f"Erreur synthèse système: {e}")
+            raise Exception("Timeout espeak")
         except Exception as e:
-            raise Exception(f"Erreur inattendue: {e}")
+            raise Exception(f"espeak échoué: {e}")
 
-    def _check_system_tts_available(self) -> bool:
-        """Vérifie si espeak et ffmpeg sont disponibles."""
-        try:
-            subprocess.run(['espeak', '--version'], capture_output=True, check=True)
-            subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return False
-
-    def _create_silent_audio(self, text: str, audio_path: str) -> Optional[str]:
-        """Crée un audio silencieux."""
-        try:
-            duration = self.fallback_duration_s
-            print(f"🔊 Création audio silencieux ({duration}s)...")
-            
-            command = [
-                'ffmpeg', '-f', 'lavfi',
-                '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100:duration={duration}',
-                '-c:a', 'libmp3lame', '-q:a', '4', '-y', audio_path
-            ]
-            
-            subprocess.run(command, check=True, capture_output=True, timeout=45)
-            return audio_path
-            
-        except Exception as e:
-            raise Exception(f"Audio silencieux échoué: {e}")
-
-    def _create_fallback_audio(self, clean_title: str) -> Optional[str]:
-        """Crée un fichier audio de fallback minimal."""
-        audio_path = safe_path_join(self.output_dir, f"audio_fallback_{clean_title}.mp3")
+    def _create_quick_fallback(self, clean_title: str) -> Optional[str]:
+        """
+        Fallback ULTRA-RAPIDE - audio silencieux court.
+        """
+        audio_path = safe_path_join(self.output_dir, f"audio_quick_{clean_title}.mp3")
         
         try:
-            # Court audio silencieux
+            # Audio silencieux de 15 secondes (parfait pour Shorts)
             command = [
                 'ffmpeg', '-f', 'lavfi',
-                '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100:duration=1',
-                '-c:a', 'libmp3lame', '-q:a', '4', '-y', audio_path
+                '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100:duration=15',
+                '-c:a', 'libmp3lame', '-q:a', '6', '-y', audio_path
             ]
             
-            subprocess.run(command, check=True, capture_output=True, timeout=30)
-            print(f"⚠️ Audio fallback créé: {os.path.basename(audio_path)}")
+            subprocess.run(command, check=True, capture_output=True, timeout=10)
+            print(f"⚠️ Audio quick fallback: {os.path.basename(audio_path)}")
             return audio_path
             
-        except Exception:
-            print("❌ Échec de la création de l'audio fallback")
+        except Exception as e:
+            print(f"❌ Échec fallback rapide: {e}")
             return None
 
-# --- INTERFACE D'EXPORT ---
+    def _check_espeak_available(self) -> bool:
+        """Vérifie rapidement espeak."""
+        try:
+            result = subprocess.run(['espeak', '--version'], 
+                                  capture_output=True, timeout=5)
+            return result.returncode == 0
+        except:
+            return False
 
+# --- FONCTION RAPIDE D'EXPORT ---
 def generate_audio(text: str, title: str) -> Optional[str]:
-    """Fonction d'export principale."""
+    """
+    Fonction d'export ULTRA-RAPIDE.
+    """
     try:
         generator = AudioGenerator()
         return generator.generate_audio(text, title)
     except Exception as e:
-        print(f"❌ Erreur critique AudioGenerator: {e}")
-        return None
+        print(f"❌ Erreur audio ULTRA-RAPIDE: {e}")
+        # Fallback immédiat
+        try:
+            generator = AudioGenerator()
+            return generator._create_quick_fallback(clean_filename(title))
+        except:
+            return None
 
-# --- TESTS ---
-
-def test_tts_cleaning():
-    """Teste le nettoyage du texte pour TTS."""
-    print("\n🧪 Test nettoyage TTS...")
+# --- TESTS DE VITESSE ---
+def test_speed():
+    """Teste la vitesse de génération."""
+    print("\n🧪 TEST DE VITESSE AUDIO...")
     
     generator = AudioGenerator()
     
-    test_cases = [
-        "🚨 TOP 10 #1 - Le *secret* choquant 🔥",
-        "👉 Cliquez ici ! 🎯 #5 - Astuce **incroyable**",
-        "💀 Ce point #3 va vous détruire ! ⚡",
-        "📹 Numéro #2 : La révélation [interdite]",
-        "🎉 Likez si vous aimez ! 💖 Commentaire ⬇️"
-    ]
+    test_text = """
+    Top 5 des secrets incroyables de la science moderne. 
+    Numéro 5 : La découverte révolutionnaire. 
+    Numéro 4 : L'innovation surprenante.
+    Numéro 3 : La révélation choquante.
+    Numéro 2 : La technologie futuriste.
+    Numéro 1 : Le secret ultime.
+    """
     
-    for i, test_text in enumerate(test_cases):
-        cleaned = generator.clean_text_for_tts(test_text)
-        print(f"Test {i+1}:")
-        print(f"  Avant: {test_text}")
-        print(f"  Après: {cleaned}")
-        print()
-
-def main_test():
-    """Test principal."""
-    print("🧪 Test AudioGenerator (version corrigée)...")
+    start_time = time.time()
+    result = generator.generate_audio(test_text, "test_vitesse")
+    end_time = time.time()
     
-    try:
-        generator = AudioGenerator()
+    if result:
+        duration = end_time - start_time
+        print(f"✅ Génération en {duration:.1f} secondes")
         
-        # Test avec texte contenant des caractères problématiques
-        test_text = "🚨 TOP 10 SECRETS CHOCS #1 - Le *premier* point 🔥 #2 - La suite 🎯 #3 - La fin 💀"
-        test_title = "Test_TTS_Cleaning"
-        
-        result = generator.generate_audio(test_text, test_title)
-        
-        if result and os.path.exists(result):
-            file_size = os.path.getsize(result) / 1024
-            print(f"\n✅ Test réussi!")
-            print(f"📁 Fichier: {result}")
-            print(f"📏 Taille: {file_size:.1f} KB")
+        # Vérifier la durée audio réelle
+        try:
+            if HAS_MOVIEPY:
+                from moviepy.editor import AudioFileClip
+                audio = AudioFileClip(result)
+                print(f"📊 Durée audio: {audio.duration:.1f}s")
+                audio.close()
+        except:
+            pass
             
-            # Nettoyage
-            try:
-                os.remove(result)
-                print("🧹 Fichier de test nettoyé")
-            except:
-                pass
-                
-            return True
-        else:
-            print("\n❌ Test échoué")
-            return False
-            
-    except Exception as e:
-        print(f"\n❌ Erreur critique: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        # Nettoyage
+        try:
+            os.remove(result)
+        except:
+            pass
+    else:
+        print("❌ Test de vitesse échoué")
 
 if __name__ == "__main__":
-    # Test du nettoyage TTS
-    test_tts_cleaning()
-    
-    # Test principal
-    success = main_test()
-    
-    sys.exit(0 if success else 1)
+    test_speed()

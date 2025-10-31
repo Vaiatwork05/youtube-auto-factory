@@ -1,4 +1,4 @@
-# content_factory/audio_generator.py (Version corrigée)
+# content_factory/audio_generator.py (VERSION CORRIGÉE TTS)
 
 import os
 import time
@@ -6,6 +6,7 @@ import sys
 import asyncio
 import subprocess
 import random
+import re
 from typing import Optional, List, Callable, Tuple
 from content_factory.utils import clean_filename, safe_path_join, ensure_directory
 from content_factory.config_loader import ConfigLoader
@@ -26,13 +27,13 @@ except ImportError:
     print("⚠️ gTTS non disponible")
 
 # --- CONSTANTES ---
-MIN_FILE_SIZE_BYTES = 2048  # 2KB minimum pour l'audio réel
+MIN_FILE_SIZE_BYTES = 2048  # 2KB minimum
 
 # Voies françaises valides pour Edge TTS
 VALID_FRENCH_VOICES = [
     "fr-FR-DeniseNeural",    # Femme - voix principale
     "fr-FR-HenriNeural",     # Homme
-    "fr-FR-AlainNeural",     # Homme
+    "fr-FR-AlainNeural",     # Homme  
     "fr-FR-BrigitteNeural",  # Femme
     "fr-FR-CelesteNeural",   # Femme
     "fr-FR-ClaudeNeural",    # Homme
@@ -47,8 +48,8 @@ VALID_FRENCH_VOICES = [
 
 class AudioGenerator:
     """
-    Génère des fichiers audio avec une chaîne de méthodes de repli robuste.
-    Version corrigée avec gestion des voix TTS valides.
+    Génère des fichiers audio avec gestion robuste du TTS.
+    Version corrigée : nettoie le texte avant synthèse vocale.
     """
     
     def __init__(self):
@@ -56,24 +57,24 @@ class AudioGenerator:
         self.audio_config = self.config.get('AUDIO_GENERATOR', {})
         self.paths = self.config.get('PATHS', {})
         
-        # Chemin de sortie basé sur la configuration
+        # Chemins
         output_root = self.paths.get('OUTPUT_ROOT', 'output')
         audio_dir = self.paths.get('AUDIO_DIR', 'audio')
         self.output_dir = safe_path_join(output_root, audio_dir)
         ensure_directory(self.output_dir)
         
-        # Paramètres configurables avec valeurs par défaut
+        # Paramètres
         self.default_voice = self.audio_config.get('DEFAULT_VOICE', 'fr-FR-DeniseNeural')
         self.speaking_rate = self.audio_config.get('SPEAKING_RATE', 1.0)
         self.fallback_duration_s = self.config.get('VIDEO_CREATOR', {}).get('FALLBACK_DURATION_S', 10)
         
-        # Validation de la voix par défaut
+        # Validation de la voix
         self._validate_and_set_voice()
         
         print(f"🔊 AudioGenerator initialisé - Voix: {self.default_voice}")
 
     def _validate_and_set_voice(self):
-        """Valide et corrige la voix par défaut si nécessaire."""
+        """Valide et corrige la voix par défaut."""
         if self.default_voice not in VALID_FRENCH_VOICES:
             print(f"⚠️ Voix '{self.default_voice}' invalide. Utilisation d'une voix valide.")
             self.default_voice = random.choice(VALID_FRENCH_VOICES)
@@ -83,21 +84,91 @@ class AudioGenerator:
         """Retourne une voix française valide."""
         return random.choice(VALID_FRENCH_VOICES)
 
+    def clean_text_for_tts(self, text: str) -> str:
+        """
+        Nettoie le texte pour que le TTS ne lise pas la ponctuation.
+        Résout le problème des 'astérisque', 'dièse', etc.
+        """
+        if not text:
+            return ""
+            
+        # Supprimer tous les émojis et caractères spéciaux
+        text = re.sub(r'[^\w\s,.!?;:()\-@#\n]', '', text)
+        
+        # Remplacer les caractères probléciaux
+        replacements = {
+            '#': 'numéro ',
+            ' - ': ' : ',
+            ' * ': ' ',
+            '**': '',
+            '()': '',
+            '[': '',
+            ']': '',
+            '\"': '',
+            "'": "",
+            '👉': '',
+            '🎯': '',
+            '🚨': '',
+            '💀': '',
+            '🔥': '',
+            '⚠️': '',
+            '💥': '',
+            '🔞': '',
+            '⚡': '',
+            '🧠': '',
+            '💸': '',
+            '💡': '',
+            '💖': '',
+            '💬': '',
+            '🔔': '',
+            '📺': '',
+            '📹': '',
+            '🎉': '',
+            '⬇️': '',
+            '✅': '',
+            '❌': ''
+        }
+        
+        for char, replacement in replacements.items():
+            text = text.replace(char, replacement)
+        
+        # Nettoyer les formats de liste
+        text = re.sub(r'(\d+)\s*-\s*', r'numéro \1 : ', text)  # "10 - Titre" → "numéro 10 : Titre"
+        
+        # Supprimer les espaces multiples
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        # Capitaliser la première lettre
+        if text:
+            text = text[0].upper() + text[1:]
+            
+        print(f"🔧 Texte nettoyé pour TTS: {text[:100]}...")
+        return text
+
     def generate_audio(self, text: str, title: str) -> Optional[str]:
         """
-        Gère la chaîne de génération audio avec fallback robuste.
+        Gère la génération audio avec texte nettoyé pour TTS.
         """
         if not text or not text.strip():
             print("❌ Texte vide fourni pour la génération audio")
             return self._create_fallback_audio(title)
         
-        print(f"🔊 Génération audio pour: {title[:70]}...")
+        # NETTOYAGE CRITIQUE du texte pour TTS
+        clean_text = self.clean_text_for_tts(text)
+        
+        if not clean_text or len(clean_text.strip()) < 10:
+            print("⚠️ Texte trop court après nettoyage, utilisation du texte original")
+            clean_text = re.sub(r'[^\w\s,.!?;:()\-]', ' ', text)  # Nettoyage basique
+            clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+        
+        print(f"🔊 Génération audio pour: {title[:50]}...")
+        print(f"📝 Texte à synthétiser: {clean_text[:100]}...")
         
         # Préparation des chemins
         clean_title = clean_filename(title)
         audio_path_base = safe_path_join(self.output_dir, f"audio_{clean_title}")
         
-        # Chaîne de fallback optimisée
+        # Chaîne de fallback
         methods = self._get_fallback_methods()
         
         for method, ext, condition in methods:
@@ -107,7 +178,8 @@ class AudioGenerator:
             current_audio_path = audio_path_base + ext
             
             try:
-                result = method(text, current_audio_path)
+                # Utiliser le texte NETTOYÉ pour le TTS
+                result = method(clean_text, current_audio_path)
                 
                 if self._validate_audio_file(result):
                     print(f"✅ Audio généré avec {method.__name__}: {os.path.basename(result)}")
@@ -122,11 +194,11 @@ class AudioGenerator:
         return self._create_fallback_audio(clean_title)
 
     def _get_fallback_methods(self) -> List[Tuple[Callable, str, bool]]:
-        """Retourne la liste des méthodes de génération audio par ordre de préférence."""
+        """Retourne les méthodes de génération par ordre de préférence."""
         return [
             (self._try_edge_tts_async, '.mp3', HAS_EDGE_TTS),
             (self._try_google_tts, '.mp3', HAS_G_TTS),
-            (self._create_silent_audio, '.mp3', True),  # Toujours disponible
+            (self._create_silent_audio, '.mp3', True),
             (self._try_system_tts, '.mp3', self._check_system_tts_available()),
         ]
 
@@ -141,48 +213,10 @@ class AudioGenerator:
         except OSError:
             return False
 
-    # --- Méthodes de Génération Audio ---
-
-    async def _try_edge_tts_async(self, text: str, audio_path: str) -> Optional[str]:
-        """Tente la génération avec Edge TTS en utilisant une voix valide."""
-        if not HAS_EDGE_TTS:
-            raise ImportError("edge_tts non disponible")
-
-        try:
-            # Utiliser une voix valide
-            voice = self.get_valid_voice()
-            rate_adjustment = f"+{int((self.speaking_rate - 1.0) * 100):+}%"
-            
-            print(f"🔊 Edge TTS avec voix: {voice}")
-            communicate = edge_tts.Communicate(text, voice, rate=rate_adjustment)
-            await communicate.save(audio_path)
-            
-            return audio_path
-            
-        except Exception as e:
-            # Si une voix spécifique échoue, essayer une autre
-            if "voice" in str(e).lower():
-                print(f"⚠️ Voix {voice} échouée, essai avec une autre...")
-                return await self._retry_edge_tts_with_fallback(text, audio_path)
-            raise
-
-    async def _retry_edge_tts_with_fallback(self, text: str, audio_path: str) -> Optional[str]:
-        """Réessaye Edge TTS avec des voix alternatives."""
-        fallback_voices = [v for v in VALID_FRENCH_VOICES if v != self.default_voice]
-        
-        for voice in fallback_voices[:3]:  # Essayer jusqu'à 3 voix alternatives
-            try:
-                print(f"🔊 Essai voix alternative: {voice}")
-                communicate = edge_tts.Communicate(text, voice)
-                await communicate.save(audio_path)
-                return audio_path
-            except Exception:
-                continue
-        
-        raise Exception("Toutes les voix Edge TTS ont échoué")
+    # --- MÉTHODES DE GÉNÉRATION AUDIO ---
 
     def _try_edge_tts_async(self, text: str, audio_path: str) -> Optional[str]:
-        """Wrapper synchrone pour Edge TTS asynchrone."""
+        """Tente la génération avec Edge TTS."""
         try:
             return asyncio.run(self._try_edge_tts_async_coro(text, audio_path))
         except Exception as e:
@@ -193,24 +227,45 @@ class AudioGenerator:
         if not HAS_EDGE_TTS:
             raise ImportError("edge_tts non disponible")
 
-        voice = self.get_valid_voice()
-        rate_adjustment = f"+{int((self.speaking_rate - 1.0) * 100):+}%"
+        try:
+            voice = self.get_valid_voice()
+            rate_adjustment = f"+{int((self.speaking_rate - 1.0) * 100):+}%"
+            
+            print(f"🔊 Edge TTS avec voix: {voice}")
+            communicate = edge_tts.Communicate(text, voice, rate=rate_adjustment)
+            await communicate.save(audio_path)
+            
+            return audio_path
+            
+        except Exception as e:
+            # Fallback sur d'autres voix en cas d'erreur
+            if "voice" in str(e).lower():
+                return await self._retry_edge_tts_with_fallback(text, audio_path)
+            raise
+
+    async def _retry_edge_tts_with_fallback(self, text: str, audio_path: str) -> Optional[str]:
+        """Réessaye Edge TTS avec des voix alternatives."""
+        fallback_voices = [v for v in VALID_FRENCH_VOICES if v != self.default_voice]
         
-        print(f"🔊 Edge TTS avec voix: {voice}")
-        communicate = edge_tts.Communicate(text, voice, rate=rate_adjustment)
-        await communicate.save(audio_path)
+        for voice in fallback_voices[:3]:  # Essayer jusqu'à 3 voix
+            try:
+                print(f"🔊 Essai voix alternative: {voice}")
+                communicate = edge_tts.Communicate(text, voice)
+                await communicate.save(audio_path)
+                return audio_path
+            except Exception:
+                continue
         
-        return audio_path
+        raise Exception("Toutes les voix Edge TTS ont échoué")
 
     def _try_google_tts(self, text: str, audio_path: str) -> Optional[str]:
-        """Tente Google TTS (gTTS)."""
+        """Tente Google TTS."""
         if not HAS_G_TTS:
             raise ImportError("gTTS non disponible")
             
         try:
-            # Google TTS utilise la langue plutôt que des voix spécifiques
             lang = 'fr'  # Français
-            slow = self.speaking_rate < 0.8  # Ajustement pour Google TTS
+            slow = self.speaking_rate < 0.8
             
             print("🔊 Google TTS en cours...")
             tts = gTTS(text=text, lang=lang, slow=slow)
@@ -221,21 +276,19 @@ class AudioGenerator:
             raise Exception(f"Google TTS échoué: {e}")
 
     def _try_system_tts(self, text: str, audio_path: str) -> Optional[str]:
-        """Tente la synthèse système (espeak + ffmpeg)."""
+        """Tente la synthèse système (espeak)."""
         if not self._check_system_tts_available():
             raise ImportError("espeak ou ffmpeg non disponible")
             
         try:
             temp_wav = audio_path.replace('.mp3', f'_{int(time.time())}.wav')
             
-            # Génération WAV avec espeak
             print("🔊 Synthèse système (espeak) en cours...")
             subprocess.run([
                 'espeak', '-v', 'fr+f2', '-s', '150', text,
                 '-w', temp_wav
             ], check=True, capture_output=True, timeout=30)
             
-            # Conversion MP3 avec ffmpeg
             if os.path.exists(temp_wav):
                 subprocess.run([
                     'ffmpeg', '-i', temp_wav, '-acodec', 'libmp3lame', 
@@ -262,7 +315,7 @@ class AudioGenerator:
             return False
 
     def _create_silent_audio(self, text: str, audio_path: str) -> Optional[str]:
-        """Crée un audio silencieux de durée configurée."""
+        """Crée un audio silencieux."""
         try:
             duration = self.fallback_duration_s
             print(f"🔊 Création audio silencieux ({duration}s)...")
@@ -284,7 +337,7 @@ class AudioGenerator:
         audio_path = safe_path_join(self.output_dir, f"audio_fallback_{clean_title}.mp3")
         
         try:
-            # Créer un très court audio silencieux
+            # Court audio silencieux
             command = [
                 'ffmpeg', '-f', 'lavfi',
                 '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100:duration=1',
@@ -299,10 +352,10 @@ class AudioGenerator:
             print("❌ Échec de la création de l'audio fallback")
             return None
 
-# --- Interface de export ---
+# --- INTERFACE D'EXPORT ---
 
 def generate_audio(text: str, title: str) -> Optional[str]:
-    """Fonction d'export principale pour le système."""
+    """Fonction d'export principale."""
     try:
         generator = AudioGenerator()
         return generator.generate_audio(text, title)
@@ -310,53 +363,49 @@ def generate_audio(text: str, title: str) -> Optional[str]:
         print(f"❌ Erreur critique AudioGenerator: {e}")
         return None
 
-# --- Tests ---
+# --- TESTS ---
 
-async def test_voices():
-    """Teste les différentes voix disponibles."""
-    print("\n🧪 Test des voix Edge TTS...")
+def test_tts_cleaning():
+    """Teste le nettoyage du texte pour TTS."""
+    print("\n🧪 Test nettoyage TTS...")
     
-    if not HAS_EDGE_TTS:
-        print("❌ edge_tts non disponible")
-        return
+    generator = AudioGenerator()
     
-    test_text = "Ceci est un test de synthèse vocale."
+    test_cases = [
+        "🚨 TOP 10 #1 - Le *secret* choquant 🔥",
+        "👉 Cliquez ici ! 🎯 #5 - Astuce **incroyable**",
+        "💀 Ce point #3 va vous détruire ! ⚡",
+        "📹 Numéro #2 : La révélation [interdite]",
+        "🎉 Likez si vous aimez ! 💖 Commentaire ⬇️"
+    ]
     
-    for voice in VALID_FRENCH_VOICES[:3]:  # Tester seulement 3 voix
-        try:
-            output_path = f"test_voice_{voice.replace('-', '_')}.mp3"
-            communicate = edge_tts.Communicate(test_text, voice)
-            await communicate.save(output_path)
-            print(f"✅ {voice} - SUCCÈS")
-            
-            # Nettoyer
-            if os.path.exists(output_path):
-                os.remove(output_path)
-                
-        except Exception as e:
-            print(f"❌ {voice} - ÉCHEC: {e}")
+    for i, test_text in enumerate(test_cases):
+        cleaned = generator.clean_text_for_tts(test_text)
+        print(f"Test {i+1}:")
+        print(f"  Avant: {test_text}")
+        print(f"  Après: {cleaned}")
+        print()
 
 def main_test():
-    """Test principal du générateur audio."""
-    print("🧪 Test AudioGenerator...")
+    """Test principal."""
+    print("🧪 Test AudioGenerator (version corrigée)...")
     
     try:
-        # Test configuration
         generator = AudioGenerator()
         
-        # Test avec un texte simple
-        test_text = "Ceci est un test complet du système de génération audio."
-        test_title = "Test_Audio_Generator"
+        # Test avec texte contenant des caractères problématiques
+        test_text = "🚨 TOP 10 SECRETS CHOCS #1 - Le *premier* point 🔥 #2 - La suite 🎯 #3 - La fin 💀"
+        test_title = "Test_TTS_Cleaning"
         
         result = generator.generate_audio(test_text, test_title)
         
         if result and os.path.exists(result):
-            file_size = os.path.getsize(result) / 1024  # KB
+            file_size = os.path.getsize(result) / 1024
             print(f"\n✅ Test réussi!")
             print(f"📁 Fichier: {result}")
             print(f"📏 Taille: {file_size:.1f} KB")
             
-            # Nettoyage du fichier de test
+            # Nettoyage
             try:
                 os.remove(result)
                 print("🧹 Fichier de test nettoyé")
@@ -365,7 +414,7 @@ def main_test():
                 
             return True
         else:
-            print("\n❌ Test échoué - Aucun fichier valide généré")
+            print("\n❌ Test échoué")
             return False
             
     except Exception as e:
@@ -375,11 +424,10 @@ def main_test():
         return False
 
 if __name__ == "__main__":
+    # Test du nettoyage TTS
+    test_tts_cleaning()
+    
     # Test principal
     success = main_test()
-    
-    # Test optionnel des voix
-    if success and HAS_EDGE_TTS:
-        asyncio.run(test_voices())
     
     sys.exit(0 if success else 1)

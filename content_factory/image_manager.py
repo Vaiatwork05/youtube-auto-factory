@@ -1,143 +1,104 @@
-# content_factory/image_manager.py (VERSION .env)
+# content_factory/image_manager.py (AVEC VOTRE VRAIE CLÉ)
 
 import os
 import time
 import requests
 import random
-import re
 from typing import Dict, Any, List, Optional
 from PIL import Image
-
 from content_factory.utils import clean_filename, safe_path_join, ensure_directory
-from content_factory.config_loader import ConfigLoader 
-
-UNSPLASH_BASE_URL = "https://api.unsplash.com/search/photos"
 
 class ImageManager:
-    """Gestionnaire d'images avec support .env"""
+    """Gestionnaire d'images avec votre VRAIE clé Unsplash."""
     
     def __init__(self):
-        self.config = ConfigLoader().get_config()
-        self.paths = self.config.get('PATHS', {})
-        
-        # 🔥 PRIORITÉ : .env > config.yaml > clé en dur
-        self.api_key = self._load_unsplash_key()
-        
-        # Chemins
-        output_root = self.paths.get('OUTPUT_ROOT', 'output')
-        self.download_dir = safe_path_join(output_root, 'images')
+        # 🔥 VOTRE VRAIE CLÉ
+        self.api_key = "ZM4rxcqbMoqb3qfda_dy0oTfLspiEsXsST55Egoh_j8"
+        self.download_dir = safe_path_join("output", "images")
         ensure_directory(self.download_dir)
         
-        print(f"🔑 Clé Unsplash: {'✅ Configurée' if self.api_key else '❌ Manquante'}")
-        
-    def _load_unsplash_key(self) -> Optional[str]:
-        """Charge la clé Unsplash avec priorité .env"""
-        # 1. .env file (priorité maximale)
-        env_key = os.getenv('UNSPLASH_API_KEY')
-        if env_key:
-            print("✅ Clé chargée depuis .env")
-            return env_key.strip()
-        
-        # 2. config.yaml
-        config_key = self.config.get('SECRETS', {}).get('UNSPLASH_API_KEY')
-        if config_key:
-            print("✅ Clé chargée depuis config.yaml")
-            return config_key.strip()
-        
-        # 3. Clé en dur (fallback)
-        hardcoded_key = "ZM4rxcqbMoqb3qfda_dy0oTfLspiEsXsST"
-        if hardcoded_key:
-            print("✅ Clé intégrée utilisée")
-            return hardcoded_key.strip()
-            
-        print("❌ Aucune clé Unsplash trouvée")
-        return None
+        # Test de la clé
+        self.unsplash_actif = self._tester_votre_cle()
+        print(f"🔑 Votre clé Unsplash: {'✅ ACTIVE' if self.unsplash_actif else '❌ INACTIVE'}")
 
-    def get_images_for_content(self, content_data: Dict[str, Any], num_images: int = 3) -> List[str]:
-        """Récupère des images pour le contenu."""
-        
-        if not self.api_key:
-            print("🔑 Mode fallback activé - Pas de clé Unsplash")
-            return self._generate_fallback_images(content_data, num_images)
-        
-        # Test rapide de la clé
-        if not self._test_unsplash_connection():
-            print("🔑 Clé Unsplash invalide - Fallback activé")
-            return self._generate_fallback_images(content_data, num_images)
-        
-        keywords = self._get_search_keywords(content_data)
-        print(f"🖼️ Recherche de {num_images} images...")
-        
-        images = []
-        for keyword in keywords[:8]:  # Limite les requêtes
-            if len(images) >= num_images:
-                break
-                
-            image_path = self._download_unsplash_image(keyword)
-            if image_path:
-                images.append(image_path)
-                print(f"   ✅ {keyword}")
-        
-        # Compléter avec fallback si nécessaire
-        if len(images) < num_images:
-            needed = num_images - len(images)
-            fallbacks = self._generate_fallback_images(content_data, needed)
-            images.extend(fallbacks)
-            print(f"   🔄 {needed} image(s) fallback ajoutée(s)")
-            
-        return images
-
-    def _test_unsplash_connection(self) -> bool:
-        """Teste la connexion Unsplash."""
+    def _tester_votre_cle(self) -> bool:
+        """Test de VOTRE clé spécifique."""
         try:
             headers = {"Authorization": f"Client-ID {self.api_key}"}
             response = requests.get(
-                f"{UNSPLASH_BASE_URL}?query=test&per_page=1", 
-                headers=headers, 
+                "https://api.unsplash.com/search/photos?query=test&per_page=1",
+                headers=headers,
                 timeout=10
             )
-            return response.status_code == 200
-        except:
+            
+            print(f"📊 Statut API: {response.status_code}")
+            
+            if response.status_code == 200:
+                return True
+            elif response.status_code == 401:
+                print("❌ Clé API invalide - Vérifiez votre clé Unsplash")
+                return False
+            elif response.status_code == 403:
+                print("❌ Limite d'API atteinte - Attendez 1 heure")
+                return False
+            else:
+                print(f"❌ Erreur inconnue: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Erreur connexion: {e}")
             return False
 
-    def _get_search_keywords(self, content_data: Dict[str, Any]) -> List[str]:
-        """Génère des mots-clés pertinents."""
-        keywords = content_data.get('keywords', [])
-        title = content_data.get('title', '')
+    def get_images_for_content(self, content_data: Dict[str, Any], num_images: int = 3) -> List[str]:
+        """Récupère des images avec votre clé."""
         
-        # Extraire les mots importants du titre
-        if title:
-            # Nettoyer le titre
-            clean_title = re.sub(r'[^\w\s]', ' ', title)
-            title_keywords = [word for word in clean_title.split() if len(word) > 3]
-            keywords.extend(title_keywords)
+        images = []
         
-        # Catégorie
-        category = content_data.get('category', '')
-        if category:
-            keywords.append(category)
+        if self.unsplash_actif:
+            print("🖼️ Recherche d'images sur Unsplash...")
+            keywords = self._extraire_mots_cles(content_data)
+            
+            for keyword in keywords:
+                if len(images) >= num_images:
+                    break
+                    
+                image_path = self._telecharger_image(keyword)
+                if image_path:
+                    images.append(image_path)
+                    print(f"   ✅ '{keyword}'")
+                else:
+                    print(f"   ❌ '{keyword}'")
         
-        # Dédupliquer et mélanger
-        unique_keywords = list(set([kw.lower() for kw in keywords if kw]))
-        random.shuffle(unique_keywords)
+        # Fallback si pas assez d'images
+        if len(images) < num_images:
+            manquant = num_images - len(images)
+            print(f"🎨 Création de {manquant} image(s) fallback")
+            images_fallback = self._creer_fallback(content_data, manquant)
+            images.extend(images_fallback)
         
-        return unique_keywords[:15]
+        print(f"📷 Total: {len(images)} images prêtes")
+        return images
 
-    def _download_unsplash_image(self, keyword: str) -> Optional[str]:
-        """Télécharge une image depuis Unsplash."""
+    def _telecharger_image(self, keyword: str) -> Optional[str]:
+        """Télécharge une image avec VOTRE clé."""
         try:
             headers = {"Authorization": f"Client-ID {self.api_key}"}
             params = {
                 "query": keyword,
-                "orientation": "portrait",  # Format vertical pour Shorts
+                "orientation": "portrait",  # Format vertical
                 "per_page": 1
             }
             
-            response = requests.get(UNSPLASH_BASE_URL, headers=headers, params=params, timeout=15)
+            response = requests.get(
+                "https://api.unsplash.com/search/photos",
+                headers=headers,
+                params=params,
+                timeout=15
+            )
             
             if response.status_code != 200:
                 return None
-                
+            
             data = response.json()
             if not data.get('results'):
                 return None
@@ -147,9 +108,8 @@ class ImageManager:
             image_response = requests.get(image_url, stream=True, timeout=20)
             image_response.raise_for_status()
             
-            # Sauvegarder avec nom unique
-            timestamp = int(time.time())
-            filename = f"unsplash_{clean_filename(keyword)}_{timestamp}.jpg"
+            # Sauvegarder
+            filename = f"unsplash_{clean_filename(keyword)}_{int(time.time())}.jpg"
             filepath = safe_path_join(self.download_dir, filename)
             
             with open(filepath, 'wb') as f:
@@ -159,60 +119,66 @@ class ImageManager:
             return filepath
             
         except Exception as e:
-            print(f"   ❌ Erreur téléchargement {keyword}: {e}")
+            print(f"   ❌ Erreur téléchargement: {e}")
             return None
 
-    def _generate_fallback_images(self, content_data: Dict[str, Any], num_images: int) -> List[str]:
-        """Génère des images de fallback colorées."""
+    def _creer_fallback(self, content_data: Dict[str, Any], num_images: int) -> List[str]:
+        """Images de fallback colorées."""
         images = []
         title = content_data.get('title', 'YouTube Shorts')
         
-        # Couleurs vibrantes pour Shorts
-        colors = [
-            (70, 130, 180),    # Bleu royal
-            (34, 139, 34),     # Vert forêt  
-            (255, 140, 0),     # Orange vif
-            (147, 112, 219),   # Violet
-            (220, 20, 60)      # Rouge
+        couleurs = [
+            (70, 130, 180), (34, 139, 34), (255, 140, 0),
+            (147, 112, 219), (220, 20, 60), (30, 144, 255)
         ]
         
         for i in range(num_images):
-            color = colors[i % len(colors)]
-            
-            # Créer image colorée
-            img = Image.new('RGB', (1080, 1920), color=color)
+            couleur = random.choice(couleurs)
+            image = Image.new('RGB', (1080, 1920), color=couleur)
             
             filename = f"fallback_{clean_filename(title)}_{i}.jpg"
             filepath = safe_path_join(self.download_dir, filename)
-            img.save(filepath, 'JPEG', quality=90)
+            image.save(filepath, 'JPEG', quality=90)
             
             images.append(filepath)
         
         return images
 
+    def _extraire_mots_cles(self, content_data: Dict[str, Any]) -> List[str]:
+        """Extrait les mots-clés."""
+        keywords = content_data.get('keywords', [])
+        title = content_data.get('title', '')
+        
+        # Mots du titre
+        if title:
+            mots = [mot for mot in title.split() if len(mot) > 3]
+            keywords.extend(mots)
+        
+        return list(set(keywords))[:8]
+
 def get_images(content_data: Dict[str, Any], num_images: int = 3) -> List[str]:
-    """Fonction d'export principale."""
+    """Fonction d'export."""
     try:
         manager = ImageManager()
         return manager.get_images_for_content(content_data, num_images)
     except Exception as e:
         print(f"❌ Erreur ImageManager: {e}")
-        # Fallback minimal
-        try:
-            manager = ImageManager()
-            return manager._generate_fallback_images(content_data, num_images)
-        except:
-            return []
+        return []
 
-# Test
+# Test spécifique
 if __name__ == "__main__":
-    print("🧪 Test ImageManager avec .env...")
+    print("🧪 TEST AVEC VOTRE CLÉ UNSPLASH...")
     
-    test_content = {
-        'title': 'TOP 10 SECRETS CHOQUANTS',
-        'keywords': ['secret', 'choc', 'révélation'],
-        'category': 'psychologie'
-    }
+    manager = ImageManager()
     
-    images = get_images(test_content, 2)
-    print(f"📷 Résultat: {len(images)} images")
+    if manager.unsplash_actif:
+        print("🎉 Votre clé fonctionne ! Test de téléchargement...")
+        
+        # Test avec un mot-clé simple
+        test_path = manager._telecharger_image("money")
+        if test_path:
+            print(f"✅ SUCCÈS - Image téléchargée: {test_path}")
+        else:
+            print("❌ Échec téléchargement test")
+    else:
+        print("😞 Votre clé ne fonctionne pas")

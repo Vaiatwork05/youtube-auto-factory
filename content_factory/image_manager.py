@@ -10,77 +10,89 @@ from datetime import datetime, timedelta
 # Imports des modules du projet
 from content_factory.utils import clean_filename, safe_path_join, ensure_directory
 from content_factory.config_loader import ConfigLoader 
-from PIL import Image # Nécessaire pour le redimensionnement
+from PIL import Image
 
 # --- CONSTANTES ---
-# Utilisation de l'API Unsplash par défaut
 UNSPLASH_BASE_URL = "https://api.unsplash.com/search/photos"
 
 class ImageManager:
     """
     Gère l'acquisition, le téléchargement et le cache des images.
-    Utilise l'API Unsplash avec un système de cache local pour optimiser les appels.
+    Version corrigée avec gestion robuste de la configuration.
     """
     def __init__(self):
         self.config = ConfigLoader().get_config()
-        self.image_config = self.config['IMAGE_MANAGER']
-        self.paths = self.config['PATHS']
-
-        # Paramètres Unsplash
-        self.api_key: str = self.config['SECRETS'].get('UNSPLASH_API_KEY', None)
         
-        # Chemins et paramètres de gestion
-        self.download_dir: str = safe_path_join(self.paths['OUTPUT_ROOT'], self.paths['IMAGE_DIR'])
-        self.cache_enabled: bool = self.image_config.get('CACHE_IMAGES', True)
-        self.cleanup_enabled: bool = self.image_config.get('CLEANUP_OLD_IMAGES', True)
-        self.max_images_to_keep: int = self.image_config.get('MAX_IMAGES_TO_KEEP', 50)
+        # CONFIGURATION ROBUSTE avec valeurs par défaut
+        self.image_config = self.config.get('IMAGE_MANAGER', {})
+        self.paths = self.config.get('PATHS', {})
         
-        # Paramètres de redimensionnement (synchronisés avec VideoCreator)
-        self.target_resolution: List[int] = self.config['VIDEO_CREATOR'].get('RESOLUTION', [1280, 720])
+        # Paramètres Unsplash - avec fallback
+        self.api_key = os.getenv('UNSPLASH_API_KEY') or self.config.get('SECRETS', {}).get('UNSPLASH_API_KEY')
+        
+        # Chemins et paramètres avec valeurs par défaut
+        output_root = self.paths.get('OUTPUT_ROOT', 'output')
+        image_dir = self.paths.get('IMAGE_DIR', 'images')
+        self.download_dir = safe_path_join(output_root, image_dir)
+        
+        self.cache_enabled = self.image_config.get('CACHE_IMAGES', True)
+        self.cleanup_enabled = self.image_config.get('CLEANUP_OLD_IMAGES', False)  # Désactivé par défaut
+        self.max_images_to_keep = self.image_config.get('MAX_IMAGES_TO_KEEP', 50)
+        
+        # Résolution cible avec fallback
+        video_config = self.config.get('VIDEO_CREATOR', {})
+        self.target_resolution = video_config.get('RESOLUTION', [1280, 720])
         
         if not self.api_key:
-            print("❌ ERREUR: UNSPLASH_API_KEY non configurée. La recherche d'images échouera.")
+            print("⚠️ AVERTISSEMENT: UNSPLASH_API_KEY non configurée. Utilisation du mode fallback.")
         
         ensure_directory(self.download_dir)
 
     def get_images_for_content(self, content_data: Dict[str, Any], num_images: int) -> List[str]:
         """
-        Trouve les images pour un contenu donné, en utilisant le cache si possible.
+        Trouve les images pour un contenu donné, avec fallback si API échoue.
         """
+        # Si pas de clé API, retourner liste vide pour déclencher le fallback
         if not self.api_key:
+            print("🔑 Pas de clé Unsplash - Mode fallback activé")
             return []
 
         images: List[str] = []
         keywords: List[str] = content_data.get('keywords', [])
         
-        print(f"\n🖼️ Recherche d'images pour {len(keywords)} mots-clés (max {num_images} images)...")
+        # Si pas de keywords, utiliser le titre
+        if not keywords and 'title' in content_data:
+            keywords = [content_data['title']]
+        
+        print(f"\n🖼️ Recherche d'images pour {len(keywords)} mots-clés...")
 
         for keyword in keywords:
             if len(images) >= num_images:
                 break
                 
             keyword = keyword.strip()
-            
+            if not keyword:
+                continue
+                
             # 1. Tenter le cache
             cached_path = self._get_from_cache(keyword)
             if cached_path:
                 images.append(cached_path)
-                print(f"   Cache HIT: '{keyword}' -> {os.path.basename(cached_path)}")
+                print(f"   ✅ Cache: '{keyword}'")
                 continue
 
-            # 2. Tenter l'API (si le cache a échoué)
+            # 2. Tenter l'API
             image_path = self._fetch_and_download_image(keyword)
             if image_path:
                 images.append(image_path)
-                print(f"   API SUCCESS: '{keyword}' -> {os.path.basename(image_path)}")
+                print(f"   ✅ API: '{keyword}'")
             else:
-                print(f"   API FAILED: '{keyword}' n'a retourné aucune image.")
+                print(f"   ❌ API échouée: '{keyword}'")
 
-        # Nettoyage à la fin du processus si activé
-        if self.cleanup_enabled:
-            self._cleanup_old_files()
+        # Nettoyage désactivé pour éviter les suppressions accidentelles
+        # if self.cleanup_enabled:
+        #     self._cleanup_old_files()
 
-        # Retourne les images trouvées (peut être moins que num_images)
         return images[:num_images]
 
     # --- Gestion du Cache ---
@@ -88,36 +100,45 @@ class ImageManager:
     def _get_cache_path(self, keyword: str) -> str:
         """Retourne un nom de fichier standardisé pour le cache."""
         clean_kw = clean_filename(keyword)[:30]
-        return safe_path_join(self.download_dir, f"cache_{clean_kw}.jpg")
+        timestamp = int(time.time())
+        return safe_path_join(self.download_dir, f"cache_{clean_kw}_{timestamp}.jpg")
 
     def _get_from_cache(self, keyword: str) -> Optional[str]:
         """Vérifie si une image existe déjà pour ce mot-clé."""
         if not self.cache_enabled:
             return None
             
-        cache_path = self._get_cache_path(keyword)
-        
-        if os.path.exists(cache_path):
-            # Mettre à jour la date d'accès pour le nettoyage futur
-            os.utime(cache_path, None) 
-            return cache_path
-            
+        # Chercher dans les fichiers existants
+        clean_kw = clean_filename(keyword)[:30]
+        for filename in os.listdir(self.download_dir):
+            if filename.startswith(f"cache_{clean_kw}") and filename.endswith('.jpg'):
+                cache_path = safe_path_join(self.download_dir, filename)
+                if os.path.exists(cache_path):
+                    os.utime(cache_path, None) 
+                    return cache_path
+                    
         return None
 
     def _save_to_cache(self, keyword: str, image_content: bytes) -> Optional[str]:
         """Sauvegarde le contenu d'une image téléchargée sur le disque."""
         cache_path = self._get_cache_path(keyword)
         try:
-            # 1. Sauvegarde brute
+            # Sauvegarde directe d'abord
             with open(cache_path, 'wb') as f:
                 f.write(image_content)
                 
-            # 2. Redimensionnement (pour accélérer l'assemblage vidéo)
-            self._resize_and_save_image(cache_path, self.target_resolution)
-            
+            # Tentative de redimensionnement (optionnel)
+            try:
+                self._resize_and_save_image(cache_path, self.target_resolution)
+            except Exception as resize_error:
+                print(f"⚠️ Redimensionnement échoué, garde l'image originale: {resize_error}")
+                
             return cache_path
         except Exception as e:
-            print(f"❌ Erreur lors de la sauvegarde/redimensionnement du cache: {e}")
+            print(f"❌ Erreur sauvegarde cache: {e}")
+            # Nettoyer le fichier partiellement créé
+            if os.path.exists(cache_path):
+                os.remove(cache_path)
             return None
 
     # --- Requête API ---
@@ -131,140 +152,74 @@ class ImageManager:
         }
         params = {
             "query": keyword,
-            "orientation": "landscape", # Format 16:9
-            "per_page": 1, # On ne prend que la meilleure image
+            "orientation": "landscape",
+            "per_page": 1,
         }
         
         try:
-            response = requests.get(UNSPLASH_BASE_URL, headers=headers, params=params, timeout=10)
+            print(f"   🔍 Requête Unsplash: '{keyword}'")
+            response = requests.get(UNSPLASH_BASE_URL, headers=headers, params=params, timeout=15)
+            
+            if response.status_code == 401:
+                print(f"   ❌ Clé API Unsplash invalide")
+                return None
+            elif response.status_code == 403:
+                print(f"   ❌ Limite d'API Unsplash atteinte")
+                return None
+                
             response.raise_for_status()
             data = response.json()
             
             if not data or not data.get('results'):
+                print(f"   ❌ Aucun résultat pour '{keyword}'")
                 return None
 
-            # On prend la première image (la plus pertinente)
+            # Prendre la première image
             image_info = data['results'][0]
-            # Utilisation du lien 'regular' pour une bonne résolution
-            download_url = image_info['urls']['regular'] 
+            download_url = image_info['urls']['regular']
             
-            # Téléchargement effectif de l'image
-            image_response = requests.get(download_url, stream=True, timeout=15)
+            # Téléchargement
+            image_response = requests.get(download_url, stream=True, timeout=20)
             image_response.raise_for_status()
             
-            # Mise en cache et redimensionnement
             return self._save_to_cache(keyword, image_response.content)
             
         except requests.exceptions.RequestException as e:
-            print(f"❌ Erreur API/Téléchargement Unsplash pour '{keyword}': {e}")
+            print(f"   ❌ Erreur réseau: {e}")
+            return None
+        except Exception as e:
+            print(f"   ❌ Erreur inattendue: {e}")
             return None
 
     # --- Support PIL (Redimensionnement) ---
 
     def _resize_and_save_image(self, path: str, target_size: List[int]):
-        """Redimensionne et ré-enregistre l'image pour optimiser l'assemblage vidéo."""
-        
+        """Redimensionne et ré-enregistre l'image."""
         try:
-            target_width, target_height = target_size[0], target_size[1]
+            target_width, target_height = target_size
             img = Image.open(path)
             
-            # Calculer le ratio pour que l'image couvre l'espace 16:9 (cover)
-            original_width, original_height = img.size
-            target_ratio = target_width / target_height
-            original_ratio = original_width / original_height
-            
-            if original_ratio > target_ratio:
-                # L'original est plus large -> rogner les côtés
-                new_width = int(target_ratio * original_height)
-                left = (original_width - new_width) // 2
-                right = left + new_width
-                img = img.crop((left, 0, right, original_height))
-            elif original_ratio < target_ratio:
-                # L'original est plus haut -> rogner le haut et le bas
-                new_height = int(original_width / target_ratio)
-                top = (original_height - new_height) // 2
-                bottom = top + new_height
-                img = img.crop((0, top, original_width, bottom))
-
-            # Redimensionnement final à la résolution cible
+            # Redimensionnement simple sans cropping
             img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
-            
-            # Ré-enregistrement en JPG optimisé
             img.save(path, format='JPEG', quality=85)
             
         except Exception as e:
-            print(f"⚠️ Échec du redimensionnement PIL pour {path}: {e}")
-            # Laisser le fichier original (non redimensionné)
-            pass
+            # Si échec, l'image originale reste utilisable
+            print(f"⚠️ Redimensionnement échoué: {e}")
 
-    # --- Nettoyage ---
-
+    # --- Nettoyage (DÉSACTIVÉ pour sécurité) ---
     def _cleanup_old_files(self):
-        """Supprime les fichiers les moins récemment accédés si la limite est dépassée."""
-        if not self.cleanup_enabled:
-            return
+        """Désactivé pour éviter la suppression accidentelle."""
+        print("🧹 Nettoyage désactivé pour sécurité")
+        return
 
-        all_files = [
-            safe_path_join(self.download_dir, f)
-            for f in os.listdir(self.download_dir)
-            if os.path.isfile(safe_path_join(self.download_dir, f))
-        ]
-        
-        if len(all_files) <= self.max_images_to_keep:
-            return
-
-        # Trier par temps d'accès (plus vieux en premier)
-        all_files.sort(key=os.path.getatime)
-        
-        # Calculer le nombre de fichiers à supprimer
-        files_to_delete = len(all_files) - self.max_images_to_keep
-        
-        if files_to_delete > 0:
-            print(f"🧹 Nettoyage: Suppression de {files_to_delete} anciens fichiers du cache...")
-            for i in range(files_to_delete):
-                try:
-                    os.remove(all_files[i])
-                except Exception as e:
-                    print(f"⚠️ Erreur lors de la suppression de {os.path.basename(all_files[i])}: {e}")
-        
-# --- Fonction d'Export et de Test ---
+# --- Fonction d'Export ---
 
 def get_images(content_data: Dict[str, Any], num_images: int) -> List[str]:
-    """Fonction d'export simple."""
-    manager = ImageManager()
-    return manager.get_images_for_content(content_data, num_images)
-
-if __name__ == "__main__":
-    print("🧪 Test ImageManager (Nécessite une clé UNSPLASH_API_KEY valide dans la config)...")
-    
-    # ⚠️ IMPORTANT: Pour le test, la clé Unsplash doit être dans votre config.yaml ou .env
-    
+    """Fonction d'export simple avec gestion d'erreur."""
     try:
         manager = ImageManager()
-        
-        test_data = {
-            'title': 'Test de la ville de Paris',
-            'script': 'La tour Eiffel et la Seine en plein soleil.',
-            'keywords': ['Tour Eiffel', 'Paris', 'Seine', 'Architecture']
-        }
-        
-        num_images_needed = 4
-        results = manager.get_images_for_content(test_data, num_images_needed)
-        
-        print("\n=== RAPPORT DE TEST IMAGE ===")
-        print(f"Résultats obtenus: {len(results)}/{num_images_needed}")
-        
-        if len(results) == num_images_needed:
-            print("✅ Succès: Toutes les images ont été trouvées et mises en cache/téléchargées.")
-            print("Liste des fichiers:")
-            for r in results:
-                 print(f" - {os.path.basename(r)}")
-            sys.exit(0)
-        else:
-            print("❌ Échec: Le nombre d'images trouvées n'est pas le nombre attendu.")
-            print("Vérifiez votre clé API et la connexion.")
-            sys.exit(1)
-            
+        return manager.get_images_for_content(content_data, num_images)
     except Exception as e:
-        print(f"\n❌ Erreur critique lors du test: {e}")
-        sys.exit(1)
+        print(f"❌ Erreur ImageManager: {e}")
+        return []

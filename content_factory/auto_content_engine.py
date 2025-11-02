@@ -118,7 +118,7 @@ def create_video_for_slot(
         print(f"   - Keywords: {len(content_data.get('keywords', []))} mots-clés")
         
         start_time = time.time()
-        video_path = creator.create_professional_video(content_data)
+        video_path = creator.create_video(content_data)
         creation_time = time.time() - start_time
         
         print(f"⏱️ [SLOT-{slot_display}] Temps de création: {creation_time:.1f}s")

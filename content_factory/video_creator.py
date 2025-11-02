@@ -446,3 +446,24 @@ def create_video(content_data: Dict[str, Any]) -> Optional[str]:
     except Exception as e:
         print(f"❌ Erreur création vidéo BRAINROT: {e}")
         return None
+
+# === COMPATIBILITÉ AVEC auto_content_engine.py ===
+
+class VideoCreator(BrainrotVideoCreator):
+    """
+    Classe de compatibilité - auto_content_engine.py attend cette classe
+    Hérite de BrainrotVideoCreator pour garder toutes les fonctionnalités BRAINROT
+    """
+    def __init__(self):
+        super().__init__()
+        print("🔧 VideoCreator (compatibilité) initialisé")
+
+# Assurez-vous que la fonction create_video existe aussi
+def create_video(content_data: Dict[str, Any]) -> Optional[str]:
+    """Fonction de compatibilité pour les imports existants"""
+    try:
+        creator = VideoCreator()
+        return creator.create_video(content_data)
+    except Exception as e:
+        print(f"❌ Erreur création vidéo (compatibilité): {e}")
+        return None

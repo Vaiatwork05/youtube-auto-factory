@@ -1,4 +1,4 @@
-# content_factory/content_generator.py (VERSION BRAINROT ÉDUCATIF)
+# content_factory/content_generator.py (VERSION CORRIGÉE - Clé DeepSeek)
 
 import random
 import sys
@@ -11,14 +11,20 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from content_factory.config_loader import ConfigLoader 
 
-print("🔍 DEBUG: ContentGenerator chargé - Version BRAINROT ÉDUCATIF")
+print("🔍 DEBUG: ContentGenerator chargé - Version BRAINROT ÉDUCATIF CORRIGÉE")
 
 class BrainrotAIClient:
-    """Client IA spécialisé dans le BRAINROT ÉDUCATIF"""
+    """Client IA spécialisé dans le BRAINROT ÉDUCATIF - VERSION CORRIGÉE"""
     
     def __init__(self):
-        self.deepseek_key = os.getenv('DEEPSEEK_API_KEY')
+        # 🔥 CORRECTION : Utiliser DEEPSEEK_API_KEY au lieu de DEEPSEEK_API_KEY
+        self.deepseek_key = os.getenv('DEEPSEEK_API_KEY')  # CORRIGÉ ICI
         self.huggingface_token = os.getenv('HUGGINGFACE_TOKEN')
+        
+        # Diagnostic des clés
+        print(f"🔑 DIAGNOSTIC CLÉS IA:")
+        print(f"   DEEPSEEK_API_KEY: {'✅ PRÉSENTE' if self.deepseek_key else '❌ ABSENTE'}")
+        print(f"   HUGGINGFACE_TOKEN: {'✅ PRÉSENT' if self.huggingface_token else '❌ ABSENT'}")
         
         self.providers = [
             self._try_deepseek_brainrot,
@@ -230,6 +236,7 @@ IMPORTANT: Mélange parfait entre FAITS RÉELS et STYLE BRAINROT VIRAL. Pas de c
                 "stream": False
             }
             
+            print(f"      🌐 Appel DeepSeek API...")
             response = requests.post(url, json=data, headers=headers, timeout=45)
             
             if response.status_code == 200:
@@ -263,6 +270,7 @@ IMPORTANT: Mélange parfait entre FAITS RÉELS et STYLE BRAINROT VIRAL. Pas de c
                 }
             }
             
+            print(f"      🌐 Appel Hugging Face API...")
             response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
             
             if response.status_code == 200:

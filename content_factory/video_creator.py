@@ -1,4 +1,4 @@
-# content_factory/video_creator.py (VERSION CORRIGÉE - Dimensions H.264)
+# content_factory/video_creator.py (VERSION COMPLÈTE AVEC MUSIC MANAGER)
 
 import os
 import time
@@ -27,6 +27,21 @@ except ImportError:
     HAS_AUDIO_GENERATOR = False
     print("❌ AudioGenerator non disponible")
 
+# =============================================================================
+# IMPORT MUSIC MANAGER - CORRECTION AJOUTÉE
+# =============================================================================
+
+try:
+    from content_factory.music_manager import MusicManager
+    HAS_MUSIC_MANAGER = True
+    print("✅ MusicManager disponible")
+except ImportError as e:
+    HAS_MUSIC_MANAGER = False
+    print(f"❌ MusicManager indisponible: {e}")
+except Exception as e:
+    HAS_MUSIC_MANAGER = False
+    print(f"❌ Erreur chargement MusicManager: {e}")
+
 class BrainrotVideoCreator:
     def __init__(self):
         self.config = ConfigLoader().get_config()
@@ -43,7 +58,12 @@ class BrainrotVideoCreator:
         self.output_dir = safe_path_join(output_root, video_dir)
         ensure_directory(self.output_dir)
         
+        # Configuration musique
+        self.music_enabled = os.getenv('BACKGROUND_MUSIC_ENABLED', 'false').lower() == 'true'
+        self.music_volume = float(os.getenv('BACKGROUND_MUSIC_VOLUME', '0.25'))
+        
         print("🎬 BrainrotVideoCreator - Qualité MAX 1080p (H.264 Compatible)")
+        print(f"🎵 Musique: {'✅ ACTIVÉE' if self.music_enabled else '❌ DÉSACTIVÉE'}")
 
     def create_video(self, content_data: Dict[str, Any], output_dir: str = None) -> Optional[str]:
         """Crée une vidéo brainrot - Version robuste avec gestion d'erreurs"""
@@ -54,7 +74,7 @@ class BrainrotVideoCreator:
         return self.create_brainrot_video(content_data)
 
     def create_brainrot_video(self, content_data: Dict[str, Any]) -> Optional[str]:
-        """Crée une vidéo brainrot ultra-optimisée"""
+        """Crée une vidéo brainrot ultra-optimisée avec musique"""
         print(f"\n🎬 CRÉATION BRAINROT ULTRA: {content_data['title']}")
         
         try:
@@ -64,13 +84,13 @@ class BrainrotVideoCreator:
                 print("❌ Aucun asset préparé")
                 return None
 
-            # Phase 2: Génération audio
+            # Phase 2: Génération audio principal
             audio_path, audio_duration = self._generate_ultra_audio(content_data)
             if not audio_path:
                 print("❌ Aucun audio généré")
                 return None
 
-            # Phase 3: Composition vidéo
+            # Phase 3: Composition vidéo avec musique
             final_video_path = self._create_ultra_composition(content_data, assets, audio_path, audio_duration)
             
             if final_video_path and os.path.exists(final_video_path):
@@ -274,22 +294,60 @@ class BrainrotVideoCreator:
 
     def _create_ultra_composition(self, content_data: Dict, assets: Dict, 
                                 audio_path: str, audio_duration: float) -> Optional[str]:
-        """Crée la composition vidéo finale"""
+        """Crée la composition vidéo finale avec musique"""
         if not HAS_MOVIEPY:
             print("❌ MoviePy non disponible")
             return None
         
         audio_clip = None
+        background_music = None
         video_clips = []
         final_video = None
         
         try:
-            # Charger et préparer l'audio
+            # Charger et préparer l'audio principal
             audio_clip = AudioFileClip(audio_path)
             video_duration = min(audio_clip.duration, self.max_duration)
             audio_clip = audio_clip.subclip(0, video_duration)
             
             print(f"⏱️ Durée ULTRA: {video_duration:.1f}s")
+            
+            # 🎵 PHASE MUSIQUE : Ajouter la musique de fond si activée
+            final_audio = audio_clip
+            if self.music_enabled and HAS_MUSIC_MANAGER:
+                try:
+                    print("🎵 Recherche de musique de fond...")
+                    music_manager = MusicManager()
+                    music_path = music_manager.find_brainrot_music(video_duration, content_data.get('category', ''))
+                    
+                    if music_path and os.path.exists(music_path):
+                        print(f"🎵 Chargement musique: {os.path.basename(music_path)}")
+                        background_music = AudioFileClip(music_path)
+                        
+                        # Ajuster la durée de la musique
+                        if background_music.duration > video_duration:
+                            background_music = background_music.subclip(0, video_duration)
+                        else:
+                            # Boucler la musique si trop courte
+                            background_music = background_music.loop(duration=video_duration)
+                        
+                        # Appliquer le volume
+                        background_music = background_music.volumex(self.music_volume)
+                        
+                        # Mixer l'audio principal avec la musique
+                        from moviepy.audio.CompositeAudioClip import CompositeAudioClip
+                        final_audio = CompositeAudioClip([audio_clip, background_music])
+                        print(f"✅ Musique intégrée (volume: {self.music_volume})")
+                    else:
+                        print("🎵 Aucune musique trouvée - continuation sans musique")
+                        
+                except Exception as e:
+                    print(f"⚠️ Erreur musique: {e} - continuation sans musique")
+            else:
+                if not self.music_enabled:
+                    print("🎵 Musique désactivée dans la configuration")
+                else:
+                    print("🎵 MusicManager indisponible")
             
             # Créer les clips vidéo
             video_clips = self._create_ultra_clips(assets, video_duration, content_data)
@@ -298,7 +356,7 @@ class BrainrotVideoCreator:
                 return None
             
             # Assembler la vidéo finale
-            final_video = self._assemble_ultra_video(video_clips, audio_clip)
+            final_video = self._assemble_ultra_video(video_clips, final_audio)
             
             # Générer le nom de fichier
             filename = f"brainrot_ultra_{clean_filename(content_data['title'])}.mp4"
@@ -329,7 +387,8 @@ class BrainrotVideoCreator:
             
             # Vérifier le résultat
             if os.path.exists(output_path):
-                print(f"✅ Vidéo créée: {output_path}")
+                file_size = os.path.getsize(output_path) / (1024 * 1024)
+                print(f"✅ Vidéo créée: {output_path} ({file_size:.1f}MB)")
                 return output_path
             else:
                 print("❌ Fichier vidéo non créé")
@@ -341,16 +400,16 @@ class BrainrotVideoCreator:
             traceback.print_exc()
             return None
         finally:
-            # Nettoyage robuste des ressources
-            if audio_clip:
-                try: audio_clip.close()
-                except: pass
-            for clip in video_clips:
-                try: clip.close()
-                except: pass
-            if final_video:
-                try: final_video.close()
-                except: pass
+            # 🧹 NETTOYAGE ROBUSTE des ressources
+            resources = [audio_clip, background_music, final_video]
+            resources.extend(video_clips)
+            
+            for resource in resources:
+                if resource:
+                    try: 
+                        resource.close()
+                    except: 
+                        pass
 
     def _create_ultra_clips(self, assets: Dict, total_duration: float, content_data: Dict) -> List:
         """Crée les clips vidéo à partir des assets"""
@@ -379,7 +438,8 @@ class BrainrotVideoCreator:
                 # 🔥 CORRECTION : Resize avec dimensions paires
                 clip = clip.resize(height=self.resolution[1])
                 
-                if i > 0:
+                # Ajouter des transitions
+                if i > 0 and len(asset_paths) > 1:
                     clip = clip.fx(fadein, 0.5).fx(fadeout, 0.5)
                 
                 clip = clip.set_position(('center', 'center'))

@@ -1,3 +1,5 @@
+# content_factory/video_creator.py (VERSION CORRIGÉE - Dimensions H.264)
+
 import os
 import time
 import random
@@ -12,6 +14,7 @@ try:
     HAS_MOVIEPY = True
 except ImportError:
     HAS_MOVIEPY = False
+    print("❌ MoviePy non disponible")
 
 from content_factory.utils import clean_filename, safe_path_join, ensure_directory
 from content_factory.config_loader import ConfigLoader
@@ -22,6 +25,7 @@ try:
     HAS_AUDIO_GENERATOR = True
 except ImportError:
     HAS_AUDIO_GENERATOR = False
+    print("❌ AudioGenerator non disponible")
 
 class BrainrotVideoCreator:
     def __init__(self):
@@ -29,8 +33,8 @@ class BrainrotVideoCreator:
         self.video_config = self.config.get('VIDEO_CREATOR', {})
         self.paths = self.config.get('PATHS', {})
         
-        # CORRECTION: Dimensions paires garanties pour H.264
-        self.resolution = (1920, 1080)  # Format paysage standard
+        # 🔥 CORRECTION : Dimensions paires garanties pour H.264
+        self.resolution = (1920, 1080)  # Format paysage standard (pairs)
         self.target_fps = 30
         self.max_duration = 59
         
@@ -39,9 +43,10 @@ class BrainrotVideoCreator:
         self.output_dir = safe_path_join(output_root, video_dir)
         ensure_directory(self.output_dir)
         
-        print("🎬 BrainrotVideoCreator - Qualité MAX 1080p")
+        print("🎬 BrainrotVideoCreator - Qualité MAX 1080p (H.264 Compatible)")
 
     def create_video(self, content_data: Dict[str, Any], output_dir: str = None) -> Optional[str]:
+        """Crée une vidéo brainrot - Version robuste avec gestion d'erreurs"""
         if output_dir:
             self.output_dir = output_dir
             ensure_directory(self.output_dir)
@@ -49,19 +54,23 @@ class BrainrotVideoCreator:
         return self.create_brainrot_video(content_data)
 
     def create_brainrot_video(self, content_data: Dict[str, Any]) -> Optional[str]:
+        """Crée une vidéo brainrot ultra-optimisée"""
         print(f"\n🎬 CRÉATION BRAINROT ULTRA: {content_data['title']}")
         
         try:
+            # Phase 1: Préparation des assets
             assets = self._prepare_ultra_assets(content_data)
             if not assets:
                 print("❌ Aucun asset préparé")
                 return None
 
+            # Phase 2: Génération audio
             audio_path, audio_duration = self._generate_ultra_audio(content_data)
             if not audio_path:
                 print("❌ Aucun audio généré")
                 return None
 
+            # Phase 3: Composition vidéo
             final_video_path = self._create_ultra_composition(content_data, assets, audio_path, audio_duration)
             
             if final_video_path and os.path.exists(final_video_path):
@@ -80,6 +89,7 @@ class BrainrotVideoCreator:
             return None
 
     def _prepare_ultra_assets(self, content_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Prépare les assets visuels avec gestion d'erreur"""
         asset_paths = get_images(content_data, num_images=12)
         if not asset_paths:
             print("❌ Aucun asset path récupéré")
@@ -89,19 +99,25 @@ class BrainrotVideoCreator:
         temp_files = []
         
         for i, asset_path in enumerate(asset_paths):
-            if asset_path.endswith('.gif'):
-                processed_path = self._process_ultra_gif(asset_path, i)
-            else:
-                processed_path = self._apply_ultra_style(asset_path, content_data, i)
-            
-            if processed_path and processed_path != asset_path:
-                temp_files.append(processed_path)
-            processed_assets.append(processed_path or asset_path)
+            try:
+                if asset_path.endswith('.gif'):
+                    processed_path = self._process_ultra_gif(asset_path, i)
+                else:
+                    processed_path = self._apply_ultra_style(asset_path, content_data, i)
+                
+                if processed_path and processed_path != asset_path:
+                    temp_files.append(processed_path)
+                processed_assets.append(processed_path or asset_path)
+                
+            except Exception as e:
+                print(f"⚠️ Erreur asset {i}: {e}")
+                processed_assets.append(asset_path)  # Utiliser l'original en fallback
         
         print(f"📊 Assets ULTRA: {len(processed_assets)}")
         return {'asset_paths': processed_assets, 'temp_files': temp_files}
 
     def _apply_ultra_style(self, image_path: str, content_data: Dict, index: int) -> Optional[str]:
+        """Applique le style brainrot aux images"""
         try:
             with Image.open(image_path) as img:
                 img = self._resize_ultra_quality(img)
@@ -116,7 +132,7 @@ class BrainrotVideoCreator:
                 
                 base, ext = os.path.splitext(image_path)
                 output_path = f"{base}_ultra{ext}"
-                img.save(output_path, 'JPEG', quality=100, optimize=True, subsampling=0)
+                img.save(output_path, 'JPEG', quality=95, optimize=True, subsampling=0)
                 
                 return output_path
         except Exception as e:
@@ -124,9 +140,10 @@ class BrainrotVideoCreator:
             return None
 
     def _resize_ultra_quality(self, img: Image.Image) -> Image.Image:
+        """Redimensionne l'image avec dimensions paires pour H.264"""
         target_width, target_height = self.resolution
         
-        # CORRECTION: Garantir des dimensions paires pour H.264
+        # 🔥 CORRECTION : Garantir des dimensions paires
         target_width = target_width if target_width % 2 == 0 else target_width - 1
         target_height = target_height if target_height % 2 == 0 else target_height - 1
         
@@ -140,7 +157,7 @@ class BrainrotVideoCreator:
             new_width = target_width
             new_height = int(img.height * (target_width / img.width))
         
-        # CORRECTION: Garantir des dimensions paires pour le resize
+        # 🔥 CORRECTION : Garantir des dimensions paires pour le resize
         new_width = new_width if new_width % 2 == 0 else new_width - 1
         new_height = new_height if new_height % 2 == 0 else new_height - 1
         
@@ -154,6 +171,7 @@ class BrainrotVideoCreator:
         return img.crop((left, top, right, bottom))
 
     def _apply_mystery_ultra(self, img: Image.Image, index: int) -> Image.Image:
+        """Style mystère pour partie 1"""
         enhancer = ImageEnhance.Contrast(img)
         img = enhancer.enhance(1.3)
         
@@ -166,6 +184,7 @@ class BrainrotVideoCreator:
         return img
 
     def _apply_shock_ultra(self, img: Image.Image, index: int) -> Image.Image:
+        """Style choc pour partie 2"""
         enhancer = ImageEnhance.Contrast(img)
         img = enhancer.enhance(1.5)
         
@@ -180,6 +199,7 @@ class BrainrotVideoCreator:
         return img
 
     def _add_animated_borders(self, img: Image.Image, index: int) -> Image.Image:
+        """Ajoute des bordures animées"""
         border_size = 5
         colors = [(255, 0, 0), (0, 255, 255), (255, 255, 0), (0, 0, 255)]
         border_color = colors[index % len(colors)]
@@ -190,14 +210,17 @@ class BrainrotVideoCreator:
         return new_img
 
     def _enhance_ultra_quality(self, img: Image.Image) -> Image.Image:
+        """Améliore la qualité de l'image"""
         enhancer = ImageEnhance.Sharpness(img)
         img = enhancer.enhance(1.2)
         return img
 
     def _process_ultra_gif(self, gif_path: str, index: int) -> Optional[str]:
+        """Traite les GIFs (placeholder)"""
         return None
 
     def _generate_ultra_audio(self, content_data: Dict) -> tuple[Optional[str], float]:
+        """Génère l'audio avec gestion de durée"""
         if not HAS_AUDIO_GENERATOR:
             return self._create_ultra_fallback_audio(content_data)
         
@@ -218,6 +241,7 @@ class BrainrotVideoCreator:
             return self._create_ultra_fallback_audio(content_data)
 
     def _create_ultra_fallback_audio(self, content_data: Dict) -> tuple[Optional[str], float]:
+        """Audio de fallback"""
         if not HAS_MOVIEPY:
             return None, 45.0
         
@@ -236,6 +260,7 @@ class BrainrotVideoCreator:
             return None, 0.0
 
     def _measure_audio_duration(self, audio_path: str) -> float:
+        """Mesure la durée audio"""
         if not HAS_MOVIEPY or not os.path.exists(audio_path):
             return 45.0
         
@@ -249,31 +274,39 @@ class BrainrotVideoCreator:
 
     def _create_ultra_composition(self, content_data: Dict, assets: Dict, 
                                 audio_path: str, audio_duration: float) -> Optional[str]:
+        """Crée la composition vidéo finale"""
         if not HAS_MOVIEPY:
             print("❌ MoviePy non disponible")
             return None
         
+        audio_clip = None
+        video_clips = []
+        final_video = None
+        
         try:
+            # Charger et préparer l'audio
             audio_clip = AudioFileClip(audio_path)
             video_duration = min(audio_clip.duration, self.max_duration)
             audio_clip = audio_clip.subclip(0, video_duration)
             
             print(f"⏱️ Durée ULTRA: {video_duration:.1f}s")
             
+            # Créer les clips vidéo
             video_clips = self._create_ultra_clips(assets, video_duration, content_data)
             if not video_clips:
                 print("❌ Aucun clip vidéo créé")
-                audio_clip.close()
                 return None
             
+            # Assembler la vidéo finale
             final_video = self._assemble_ultra_video(video_clips, audio_clip)
             
+            # Générer le nom de fichier
             filename = f"brainrot_ultra_{clean_filename(content_data['title'])}.mp4"
             output_path = safe_path_join(self.output_dir, filename)
             
             print(f"💾 Export QUALITÉ MAX...")
             
-            # CORRECTION: Paramètres FFmpeg optimisés
+            # 🔥 CORRECTION : Paramètres H.264 optimisés
             final_video.write_videofile(
                 output_path,
                 fps=self.target_fps,
@@ -294,11 +327,7 @@ class BrainrotVideoCreator:
                 ]
             )
             
-            final_video.close()
-            audio_clip.close()
-            for clip in video_clips:
-                clip.close()
-            
+            # Vérifier le résultat
             if os.path.exists(output_path):
                 print(f"✅ Vidéo créée: {output_path}")
                 return output_path
@@ -311,8 +340,20 @@ class BrainrotVideoCreator:
             import traceback
             traceback.print_exc()
             return None
+        finally:
+            # Nettoyage robuste des ressources
+            if audio_clip:
+                try: audio_clip.close()
+                except: pass
+            for clip in video_clips:
+                try: clip.close()
+                except: pass
+            if final_video:
+                try: final_video.close()
+                except: pass
 
     def _create_ultra_clips(self, assets: Dict, total_duration: float, content_data: Dict) -> List:
+        """Crée les clips vidéo à partir des assets"""
         if not HAS_MOVIEPY:
             return []
         
@@ -335,7 +376,7 @@ class BrainrotVideoCreator:
                 else:
                     clip = ImageClip(asset_path, duration=durations[i])
                 
-                # CORRECTION: Resize avec dimensions paires
+                # 🔥 CORRECTION : Resize avec dimensions paires
                 clip = clip.resize(height=self.resolution[1])
                 
                 if i > 0:
@@ -352,6 +393,7 @@ class BrainrotVideoCreator:
         return clips
 
     def _calculate_ultra_durations(self, num_assets: int, total_duration: float) -> List[float]:
+        """Calcule les durées pour chaque asset"""
         if num_assets == 0:
             return []
         
@@ -366,6 +408,7 @@ class BrainrotVideoCreator:
         return durations
 
     def _assemble_ultra_video(self, video_clips: List, audio_clip: Any) -> Any:
+        """Assemble la vidéo finale"""
         if not video_clips:
             raise ValueError("Aucun clip ULTRA")
         
@@ -380,5 +423,29 @@ class BrainrotVideoCreator:
         return final_video
 
     def _cleanup_temp_files(self, files: List[str]):
+        """Nettoie les fichiers temporaires"""
         cleaned = 0
-        for file
+        for file in files:
+            try:
+                if file and os.path.exists(file) and any(pattern in file for pattern in ['_ultra', 'fallback_audio']):
+                    os.remove(file)
+                    cleaned += 1
+            except Exception:
+                continue
+        
+        if cleaned > 0:
+            print(f"🧹 {cleaned} fichiers ULTRA nettoyés")
+
+class VideoCreator(BrainrotVideoCreator):
+    def __init__(self):
+        super().__init__()
+        print("🔧 VideoCreator ULTRA initialisé")
+
+def create_video(content_data: Dict[str, Any]) -> Optional[str]:
+    """Fonction d'interface principale"""
+    try:
+        creator = VideoCreator()
+        return creator.create_video(content_data)
+    except Exception as e:
+        print(f"❌ Création ULTRA: {e}")
+        return None

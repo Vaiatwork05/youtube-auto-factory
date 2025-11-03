@@ -1,4 +1,4 @@
-# content_factory/audio_generator.py (VERSION CORRIGÉE - DURÉE FIXÉE)
+# content_factory/audio_generator.py (VERSION AVEC LOGS TTS)
 
 import os
 import time
@@ -198,6 +198,23 @@ class AudioGenerator:
         """
         Génère l'audio complet avec DURÉE GARANTIE de 45-60 secondes.
         """
+        
+        # 🔍 LOGS CRITIQUES TTS - CE QUE VOUS VOULIEZ !
+        print(f"\n🎙️  DEBUG TTS - TEXTE À LIRE:")
+        print("=" * 60)
+        print(f"🎯 Titre: {title}")
+        print(f"📏 Longueur script: {len(text)} caractères")
+        print(f"🔢 Partie: {'1' if content_data and content_data.get('is_part1', True) else '2'}")
+        print("─" * 40)
+        print("📖 TEXTE COMPLET POUR TTS:")
+        print(text)
+        print("─" * 40)
+        print(f"📊 Statistiques:")
+        print(f"   • Lignes: {len(text.splitlines())}")
+        print(f"   • Mots: {len(text.split())}")
+        print(f"   • Caractères: {len(text)}")
+        print("=" * 60)
+        
         if not text or not text.strip():
             print("❌ Texte vide, utilisation du fallback")
             text = self._generate_fallback_text()

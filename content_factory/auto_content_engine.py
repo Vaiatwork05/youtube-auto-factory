@@ -1,9 +1,9 @@
-# auto_content_engine.py (VERSION AVEC LOGS STRATÉGIQUES)
+# auto_content_engine.py (VERSION CORRIGÉE - Chargement .env + Gestion erreurs)
 
 #!/usr/bin/env python3
 """
 YouTube Auto Factory - Orchestrateur Principal
-Version avec logging étendu pour le debug
+Version corrigée avec chargement .env et gestion d'erreurs améliorée
 """
 
 import os
@@ -13,6 +13,41 @@ import traceback
 import argparse
 from datetime import datetime
 from typing import Dict, Any, Tuple, List, Optional
+
+# =============================================================================
+# 🔥 CORRECTION CRITIQUE : CHARGEMENT .env AVANT TOUT
+# =============================================================================
+
+def load_environment():
+    """Charge les variables d'environnement depuis .env"""
+    try:
+        from dotenv import load_dotenv
+        # Chercher le .env dans le répertoire racine du projet
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        env_path = os.path.join(project_root, '.env')
+        
+        if os.path.exists(env_path):
+            load_dotenv(env_path)
+            print(f"✅ Fichier .env chargé: {env_path}")
+            
+            # Diagnostic des clés critiques
+            critical_keys = ['DEEPSEEK_API_KEY', 'UNSPLASH_API_KEY', 'HUGGINGFACE_TOKEN']
+            print("🔑 DIAGNOSTIC CLÉS API:")
+            for key in critical_keys:
+                value = os.getenv(key)
+                status = "✅ PRÉSENTE" if value else "❌ ABSENTE"
+                print(f"   {key}: {status}")
+        else:
+            print(f"⚠️ Fichier .env non trouvé: {env_path}")
+            print("ℹ️  Utilisation des variables d'environnement système")
+            
+    except ImportError:
+        print("⚠️ python-dotenv non installé - utilisation variables système")
+    except Exception as e:
+        print(f"⚠️ Erreur chargement .env: {e}")
+
+# Charger l'environnement IMMÉDIATEMENT
+load_environment()
 
 # =============================================================================
 # GESTION ROBUSTE DES IMPORTS
@@ -44,7 +79,7 @@ except ImportError as e:
     IMPORT_SUCCESS = False
 
 # =============================================================================
-# FONCTIONS PRINCIPALES AVEC LOGGING ÉTENDU
+# FONCTIONS PRINCIPALES AVEC GESTION D'ERREURS AMÉLIORÉE
 # =============================================================================
 
 def get_current_slot(slot_hours: List[int]) -> int:
@@ -75,7 +110,7 @@ def create_video_for_slot(
 ) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
     """
     Crée une vidéo pour un créneau spécifique.
-    Version avec logging étendu pour identifier les blocages.
+    Version avec gestion d'erreurs robuste.
     """
     slot_display = slot_number + 1
     target_hour = slot_hours[slot_number]
@@ -85,7 +120,7 @@ def create_video_for_slot(
     print("=" * 50)
     
     try:
-        # 🔍 LOG 1: Validation des données d'entrée
+        # 🔍 Validation des données d'entrée
         print(f"🔍 [SLOT-{slot_display}] Validation des données...")
         
         if slot_number >= len(all_daily_contents):
@@ -105,13 +140,16 @@ def create_video_for_slot(
         print(f"🎯 [SLOT-{slot_display}] Thème: {content_data.get('category', 'N/A')}")
         print(f"🔑 [SLOT-{slot_display}] Mots-clés: {', '.join(content_data.get('keywords', [])[:3])}")
         
-        # 🔍 LOG 2: Initialisation VideoCreator
+        # 🔍 Initialisation VideoCreator avec gestion d'erreur
         print(f"🔧 [SLOT-{slot_display}] Initialisation VideoCreator...")
-        creator = VideoCreator()
-        print(f"✅ [SLOT-{slot_display}] VideoCreator initialisé")
+        try:
+            creator = VideoCreator()
+            print(f"✅ [SLOT-{slot_display}] VideoCreator initialisé")
+        except Exception as e:
+            raise RuntimeError(f"Erreur initialisation VideoCreator: {e}")
         
-        # 🔍 LOG 3: Appel à la création vidéo (POINT CRITIQUE)
-        print(f"🚀 [SLOT-{slot_display}] Appel create_professional_video()...")
+        # 🔍 Création vidéo (POINT CRITIQUE)
+        print(f"🚀 [SLOT-{slot_display}] Appel create_video()...")
         print(f"📦 [SLOT-{slot_display}] Données envoyées:")
         print(f"   - Title: {content_data.get('title', 'N/A')}")
         print(f"   - Script length: {len(content_data.get('script', ''))} caractères")
@@ -124,27 +162,31 @@ def create_video_for_slot(
         print(f"⏱️ [SLOT-{slot_display}] Temps de création: {creation_time:.1f}s")
         print(f"📤 [SLOT-{slot_display}] Résultat video_creator: {video_path}")
         
-        # 🔍 LOG 4: Validation du résultat
+        # 🔍 Validation du résultat
         if not video_path:
             print(f"❌ [SLOT-{slot_display}] ERREUR: video_path est None/empty")
-            raise RuntimeError("Aucun chemin vidéo retourné")
+            raise RuntimeError("Aucun chemin vidéo retourné par VideoCreator")
         
         print(f"🔍 [SLOT-{slot_display}] Vérification existence fichier...")
         if not os.path.exists(video_path):
             print(f"❌ [SLOT-{slot_display}] Fichier non trouvé: {video_path}")
             print(f"🔍 [SLOT-{slot_display}] Répertoire parent: {os.path.dirname(video_path)}")
-            print(f"🔍 [SLOT-{slot_display}] Contenu du répertoire:")
-            try:
-                if os.path.exists(os.path.dirname(video_path)):
-                    files = os.listdir(os.path.dirname(video_path))
-                    for f in files[:10]:  # Premier 10 fichiers
-                        print(f"   - {f}")
-            except Exception as dir_error:
-                print(f"   ⚠️ Impossible de lister: {dir_error}")
+            
+            # Diagnostic du répertoire
+            parent_dir = os.path.dirname(video_path)
+            if os.path.exists(parent_dir):
+                files = os.listdir(parent_dir)
+                print(f"🔍 [SLOT-{slot_display}] Fichiers dans le répertoire ({len(files)}):")
+                for f in files[:5]:
+                    file_path = os.path.join(parent_dir, f)
+                    size = os.path.getsize(file_path) / (1024 * 1024) if os.path.isfile(file_path) else 0
+                    print(f"   - {f} ({size:.1f} MB)")
+            else:
+                print(f"🔍 [SLOT-{slot_display}] Répertoire parent n'existe pas")
             
             raise FileNotFoundError(f"Fichier vidéo non trouvé: {video_path}")
         
-        # 🔍 LOG 5: Succès avec détails
+        # 🔍 Succès avec détails
         file_size = os.path.getsize(video_path) / (1024 * 1024)  # Taille en MB
         print(f"✅ [SLOT-{slot_display}] VIDÉO CRÉÉE AVEC SUCCÈS")
         print(f"   📁 Chemin: {video_path}")
@@ -170,7 +212,7 @@ def create_and_process_videos(
 ) -> List[Dict[str, Any]]:
     """
     Orchestre la création et le traitement des vidéos.
-    Version avec logging étendu.
+    Version avec gestion d'erreurs robuste.
     """
     successful_videos = []
     
@@ -186,7 +228,7 @@ def create_and_process_videos(
         gen_time = time.time() - start_time
         
         if not all_daily_contents:
-            raise RuntimeError("Aucun contenu généré")
+            raise RuntimeError("Aucun contenu généré - vérifiez les clés IA")
         
         expected_slots = len(slot_hours)
         actual_slots = len(all_daily_contents)
@@ -194,7 +236,7 @@ def create_and_process_videos(
         print(f"✅ Génération terminée en {gen_time:.1f}s")
         print(f"📊 Résultat: {actual_slots} contenus générés sur {expected_slots} attendus")
         
-        # 🔍 LOG: Détail des contenus générés
+        # Détail des contenus générés
         for i, content in enumerate(all_daily_contents):
             print(f"   {i+1}. {content.get('title', 'Sans titre')}")
         
@@ -301,8 +343,6 @@ def handle_upload(
             
     except Exception as e:
         print(f"❌ ERREUR - Upload YouTube: {e}")
-        if debug_mode:
-            traceback.print_exc()
         return False
 
 def setup_directories(config: Dict[str, Any]) -> bool:
@@ -392,7 +432,7 @@ def main() -> bool:
         
         # DÉMARRAGE
         print("\n" + "=" * 70)
-        print("🎯 YOUTUBE AUTO FACTORY - MOTEUR DE PRODUCTION")
+        print("🎯 YOUTUBE AUTO FACTORY - MOTEUR DE PRODUCTION CORRIGÉ")
         print("=" * 70)
         print(f"📅 Lancement: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"🔧 Mode: {mode.upper()}")
@@ -400,7 +440,6 @@ def main() -> bool:
         print(f"🔄 Force run: {force_run}")
         print(f"⏰ Créneaux: {slot_hours}")
         print(f"⏱️ Pause: {slot_pause}s")
-        print(f"🎵 Musique: {'✅ ACTIVÉE' if os.getenv('BACKGROUND_MUSIC_ENABLED', 'false').lower() == 'true' else '❌ DÉSACTIVÉE'}")
         
         # PRÉPARATION
         if not setup_directories(config):
@@ -430,7 +469,6 @@ def main() -> bool:
         
         print(f"🎯 Créneaux traités: {success_count}/{total_slots}")
         print(f"📤 Upload YouTube: {'✅ SUCCÈS' if upload_success else '⚠️ NON RÉALISÉ'}")
-        print(f"🎵 Musique: {'✅ INTÉGRÉE' if success_count > 0 and os.getenv('BACKGROUND_MUSIC_ENABLED', 'false').lower() == 'true' else '❌ ABSENTE'}")
         
         if successful_videos:
             print("\n📋 VIDÉOS PRODUITES:")

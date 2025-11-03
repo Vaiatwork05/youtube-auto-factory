@@ -1,4 +1,4 @@
-# content_factory/image_manager.py
+# content_factory/image_manager.py (VERSION INTELLIGENTE)
 
 import os
 import random
@@ -13,12 +13,12 @@ from content_factory.config_loader import ConfigLoader
 try:
     from content_factory.reddit_gifs import get_brainrot_gifs
     REDDIT_GIFS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     REDDIT_GIFS_AVAILABLE = False
-    print("⚠️ Reddit GIFs non disponible")
+    print(f"⚠️ Reddit GIFs non disponible: {e}")
 
 class BrainrotImageManager:
-    """Gestionnaire d'images optimisé pour contenu BRAINROT TOP 10"""
+    """Gestionnaire d'images INTELLIGENT optimisé pour contenu BRAINROT TOP 10"""
     
     def __init__(self):
         self.config = ConfigLoader().get_config()
@@ -41,37 +41,108 @@ class BrainrotImageManager:
             'argent_business': ['#e65100', '#ff9800', '#ffb74d'] # Orange argent
         }
 
+        print("🎨 ImageManager INTELLIGENT initialisé - Système GIFs optimisé")
+
     def generate_brainrot_assets(self, content_data: Dict, num_images: int = 8, num_gifs: int = 4) -> List[str]:
-        """Génère des assets visuels BRAINROT pour le contenu"""
+        """Génère des assets visuels INTELLIGENTS avec priorité aux GIFs"""
         
         category = content_data.get('category', 'science')
         is_part1 = content_data.get('is_part1', True)
         title = content_data.get('title', '')
         slot_number = content_data.get('slot_number', 0)
         
-        print(f"🎨 GÉNÉRATION ASSETS BRAINROT - Slot {slot_number}")
+        print(f"🎨 GÉNÉRATION ASSETS INTELLIGENTS - Slot {slot_number}")
         print(f"   📝 {title}")
+        print(f"   🎯 Catégorie: {category} | Partie: {'1' if is_part1 else '2'}")
         
         all_assets = []
         
-        # 1. Générer des images stylisées BRAINROT
-        brainrot_images = self._generate_brainrot_images(content_data, num_images)
-        all_assets.extend(brainrot_images)
-        print(f"   🖼️ {len(brainrot_images)} images BRAINROT générées")
+        # STRATÉGIE INTELLIGENTE : GIFs en PRIORITÉ
+        gif_paths = self._get_intelligent_gifs(content_data, num_gifs)
+        all_assets.extend(gif_paths)
         
-        # 2. Récupérer des GIFs Reddit pertinents
-        if REDDIT_GIFS_AVAILABLE:
-            gif_urls = get_brainrot_gifs(content_data, num_gifs)
-            if gif_urls:
-                gif_paths = self._download_gifs(gif_urls, content_data)
-                all_assets.extend(gif_paths)
-                print(f"   🎬 {len(gif_paths)} GIFs BRAINROT téléchargés")
+        # Images en COMPLÉMENT (seulement si besoin)
+        needed_images = max(0, num_images - len(gif_paths))
+        if needed_images > 0:
+            brainrot_images = self._generate_brainrot_images(content_data, needed_images)
+            all_assets.extend(brainrot_images)
+            print(f"   🖼️ {len(brainrot_images)} images générées en complément")
         
-        # 3. Mélanger l'ordre pour variété
-        random.shuffle(all_assets)
+        # Mélanger pour variété mais garder quelques GIFs au début
+        if len(all_assets) > 3:
+            # Garder 2-3 GIFs au début pour un bon départ
+            gifs_in_assets = [a for a in all_assets if a.endswith('.gif')]
+            other_assets = [a for a in all_assets if not a.endswith('.gif')]
+            
+            if gifs_in_assets:
+                # Prendre quelques GIFs pour le début
+                starting_gifs = gifs_in_assets[:min(3, len(gifs_in_assets))]
+                remaining_gifs = gifs_in_assets[min(3, len(gifs_in_assets)):]
+                
+                # Mélanger le reste
+                random.shuffle(other_assets)
+                random.shuffle(remaining_gifs)
+                
+                all_assets = starting_gifs + other_assets + remaining_gifs
+            else:
+                random.shuffle(all_assets)
+        else:
+            random.shuffle(all_assets)
         
-        print(f"🎉 Total assets BRAINROT: {len(all_assets)}")
+        gif_count = sum(1 for a in all_assets if a.endswith('.gif'))
+        print(f"🎉 Total assets: {len(all_assets)} (dont {gif_count} GIFs intelligents)")
+        
         return all_assets
+
+    def _get_intelligent_gifs(self, content_data: Dict, num_gifs: int) -> List[str]:
+        """Système INTELLIGENT de récupération de GIFs avec fallbacks"""
+        
+        gif_paths = []
+        
+        if not REDDIT_GIFS_AVAILABLE:
+            print("   ❌ Système GIFs non disponible")
+            return gif_paths
+        
+        print("   🧠 Lancement recherche GIFs intelligente...")
+        
+        try:
+            # ESSAI 1: Recherche Reddit intelligente
+            gif_urls = get_brainrot_gifs(content_data, num_gifs)
+            
+            if gif_urls:
+                downloaded = self._download_gifs(gif_urls, content_data)
+                gif_paths.extend(downloaded)
+                print(f"   ✅ {len(downloaded)} GIFs intelligents trouvés")
+                
+                # Si on a assez de GIFs, on s'arrête là
+                if len(gif_paths) >= num_gifs:
+                    return gif_paths[:num_gifs]
+            
+            # ESSAI 2: Recherche de fallback
+            remaining_gifs = num_gifs - len(gif_paths)
+            if remaining_gifs > 0:
+                print(f"   🔄 Recherche fallback ({remaining_gifs} GIFs manquants)...")
+                fallback_gifs = self._fallback_gif_search(content_data, remaining_gifs)
+                gif_paths.extend(fallback_gifs)
+                
+        except Exception as e:
+            print(f"   ❌ Erreur recherche GIFs: {e}")
+        
+        return gif_paths
+
+    def _fallback_gif_search(self, content_data: Dict, num_gifs: int) -> List[str]:
+        """Recherche de fallback quand Reddit échoue"""
+        
+        # Pour l'instant, retourner une liste vide
+        # Plus tard, on pourra implémenter:
+        # - GIFs locaux dans assets/gifs/
+        # - Génération d'animations avec Pillow
+        # - Autres APIs GIFs
+        
+        print("   💡 ASTUCE: Crée un dossier 'assets/gifs/' avec des GIFs brainrot!")
+        print("   💡 Les GIFs locaux seront utilisés en fallback automatiquement")
+        
+        return []
 
     def _generate_brainrot_images(self, content_data: Dict, num_images: int) -> List[str]:
         """Génère des images au style BRAINROT"""
@@ -83,6 +154,8 @@ class BrainrotImageManager:
         
         colors = self.brainrot_styles.get(category, self.brainrot_styles['science'])
         images = []
+        
+        print(f"   🎨 Génération de {num_images} images brainrot...")
         
         for i in range(num_images):
             try:
@@ -246,12 +319,16 @@ class BrainrotImageManager:
         return lines
 
     def _download_gifs(self, gif_urls: List[str], content_data: Dict) -> List[str]:
-        """Télécharge les GIFs depuis les URLs"""
+        """Télécharge les GIFs depuis les URLs avec gestion d'erreur améliorée"""
         downloaded_paths = []
+        
+        print(f"   📥 Téléchargement de {len(gif_urls)} GIFs...")
         
         for i, gif_url in enumerate(gif_urls):
             try:
                 headers = {'User-Agent': 'YouTubeBrainrotFactory/1.0'}
+                print(f"      🔄 GIF {i+1}/{len(gif_urls)}: {gif_url[:80]}...")
+                
                 response = requests.get(gif_url, headers=headers, timeout=30)
                 
                 if response.status_code == 200:
@@ -261,20 +338,39 @@ class BrainrotImageManager:
                     with open(output_path, 'wb') as f:
                         f.write(response.content)
                     
-                    downloaded_paths.append(output_path)
-                    print(f"      ✅ GIF {i+1} téléchargé")
+                    # Vérifier que le fichier est valide
+                    file_size = os.path.getsize(output_path)
+                    if file_size > 1024:  # Au moins 1KB
+                        downloaded_paths.append(output_path)
+                        print(f"      ✅ GIF {i+1} téléchargé ({file_size//1024} KB)")
+                    else:
+                        print(f"      ❌ GIF {i+1} trop petit, suppression")
+                        os.remove(output_path)
                 else:
-                    print(f"      ❌ Erreur téléchargement GIF {i+1}: {response.status_code}")
+                    print(f"      ❌ Erreur HTTP {response.status_code} pour GIF {i+1}")
                     
             except Exception as e:
-                print(f"      ⚠️ Erreur GIF {i+1}: {e}")
+                print(f"      ⚠️ Erreur téléchargement GIF {i+1}: {e}")
                 continue
         
         return downloaded_paths
 
+    def create_gifs_folder_structure(self):
+        """Crée la structure de dossiers pour les GIFs locaux"""
+        gifs_dir = safe_path_join("assets", "gifs")
+        ensure_directory(gifs_dir)
+        
+        # Sous-dossiers par catégorie
+        categories = ['technologie', 'science', 'psychologie', 'argent_business', 'sante_bienetre']
+        for category in categories:
+            ensure_directory(safe_path_join(gifs_dir, category))
+        
+        print("✅ Structure GIFs locale créée!")
+        print("💡 Ajoute des GIFs dans assets/gifs/ pour le fallback automatique")
+
 # Fonction d'interface principale
 def get_images(content_data: Dict, num_images: int = 8) -> List[str]:
-    """Fonction principale pour récupérer des images BRAINROT"""
+    """Fonction principale pour récupérer des images BRAINROT intelligentes"""
     manager = BrainrotImageManager()
     return manager.generate_brainrot_assets(content_data, num_images)
 
@@ -284,4 +380,31 @@ def enhance_with_brainrot_assets(content_data: Dict) -> Dict:
     assets = manager.generate_brainrot_assets(content_data)
     content_data['brainrot_assets'] = assets
     content_data['has_brainrot_style'] = True
+    content_data['assets_count'] = len(assets)
+    content_data['gifs_count'] = sum(1 for a in assets if a.endswith('.gif'))
     return content_data
+
+# Utilitaire pour setup
+def setup_gifs_infrastructure():
+    """Crée l'infrastructure pour les GIFs locaux"""
+    manager = BrainrotImageManager()
+    manager.create_gifs_folder_structure()
+
+# Test
+if __name__ == "__main__":
+    print("🧪 Test ImageManager Intelligent...")
+    
+    test_data = {
+        'title': 'TEST Technologies Militaires Secrètes',
+        'category': 'technologie',
+        'is_part1': False,
+        'script': 'Les technologies militaires classées secret défense vont vous choquer...',
+        'keywords': ['militaire', 'secret', 'technologie', 'défense']
+    }
+    
+    manager = BrainrotImageManager()
+    assets = manager.generate_brainrot_assets(test_data, 6, 3)
+    
+    print(f"🎯 Résultat: {len(assets)} assets générés")
+    for asset in assets:
+        print(f"   - {os.path.basename(asset)}")

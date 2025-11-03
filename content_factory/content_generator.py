@@ -3,7 +3,6 @@
 import random
 import sys
 import re 
-import requests
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from content_factory.config_loader import ConfigLoader 

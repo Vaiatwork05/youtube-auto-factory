@@ -1,4 +1,4 @@
-# content_factory/content_generator.py (VERSION CORRIGÉE - Clé DeepSeek)
+# content_factory/content_generator.py (VERSION AVEC FALLBACKS ROBUSTES)
 
 import random
 import sys
@@ -11,25 +11,32 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from content_factory.config_loader import ConfigLoader 
 
-print("🔍 DEBUG: ContentGenerator chargé - Version BRAINROT ÉDUCATIF CORRIGÉE")
+print("🔍 DEBUG: ContentGenerator chargé - Version FALLBACK ROBUSTE")
 
 class BrainrotAIClient:
-    """Client IA spécialisé dans le BRAINROT ÉDUCATIF - VERSION CORRIGÉE"""
+    """Client IA avec fallbacks robustes - VERSION CORRIGÉE"""
     
     def __init__(self):
-        # 🔥 CORRECTION : Utiliser DEEPSEEK_API_KEY au lieu de DEEPSEEK_API_KEY
-        self.deepseek_key = os.getenv('DEEPSEEK_API_KEY')  # CORRIGÉ ICI
+        # Diagnostic complet des clés
+        self.deepseek_key = os.getenv('DEEPSEEK_API_KEY')
         self.huggingface_token = os.getenv('HUGGINGFACE_TOKEN')
+        self.openai_key = os.getenv('OPENAI_API_KEY')  # Alternative
+        self.groq_key = os.getenv('GROQ_API_KEY')      # Alternative
         
-        # Diagnostic des clés
         print(f"🔑 DIAGNOSTIC CLÉS IA:")
         print(f"   DEEPSEEK_API_KEY: {'✅ PRÉSENTE' if self.deepseek_key else '❌ ABSENTE'}")
         print(f"   HUGGINGFACE_TOKEN: {'✅ PRÉSENT' if self.huggingface_token else '❌ ABSENT'}")
+        print(f"   OPENAI_API_KEY: {'✅ PRÉSENTE' if self.openai_key else '❌ ABSENTE'}")
+        print(f"   GROQ_API_KEY: {'✅ PRÉSENTE' if self.groq_key else '❌ ABSENTE'}")
         
+        # Ordre de priorité des providers
         self.providers = [
-            self._try_deepseek_brainrot,
-            self._try_huggingface_brainrot,
-            self._generate_brainrot_fallback
+            self._try_groq_brainrot,           # Nouveau - souvent gratuit
+            self._try_openai_brainrot,         # Alternative
+            self._try_deepseek_brainrot,       # Original (peut échouer)
+            self._try_huggingface_brainrot,    # Original (peut échouer)
+            self._generate_ai_fallback,        # Fallback IA basique
+            self._generate_brainrot_fallback   # Fallback manuel
         ]
         
         # Formules brainrot accrocheuses
@@ -59,10 +66,10 @@ class BrainrotAIClient:
             "Votre esprit va être PULVÉRISÉ dans 3... 2... 1..."
         ]
         
-        print("🧠 Client Brainrot Éducatif initialisé")
+        print("🧠 Client Brainrot Éducatif initialisé avec fallbacks robustes")
 
     def generate_brainrot_script(self, topic: str, category: str, is_part1: bool, points_count: int = 5) -> Dict[str, Any]:
-        """Génère un script BRAINROT ÉDUCATIF - viral mais avec faits réels"""
+        """Génère un script BRAINROT ÉDUCATIF avec fallbacks robustes"""
         
         print(f"\n🧠 GÉNÉRATION BRAINROT ÉDUCATIF: {topic}")
         print(f"   🎯 Catégorie: {category} | Partie: {'1' if is_part1 else '2'}")
@@ -74,28 +81,32 @@ class BrainrotAIClient:
         for provider in self.providers:
             try:
                 provider_name = provider.__name__.replace('_', ' ').title()
-                print(f"   🔄 Brainrot avec {provider_name}...")
+                print(f"   🔄 Essai avec {provider_name}...")
                 
                 start_time = time.time()
                 script = provider(brainrot_prompt)
                 response_time = time.time() - start_time
                 
                 if script and self._is_good_brainrot(script):
-                    print(f"   ✅ Brainrot réussi avec {provider_name} ({response_time:.1f}s)")
+                    print(f"   ✅ Succès avec {provider_name} ({response_time:.1f}s)")
                     script = self._enhance_brainrot_effects(script, is_part1)
                     script = self._enforce_character_limit(script)
                     break
                 else:
-                    print(f"   ❌ {provider_name}: brainrot insuffisant")
+                    print(f"   ❌ {provider_name}: résultat insuffisant")
                     
             except Exception as e:
-                print(f"   ❌ {provider.__name__} échoué: {str(e)[:100]}...")
+                error_msg = str(e)
+                if "402" in error_msg or "410" in error_msg or "quota" in error_msg.lower():
+                    print(f"   💸 {provider_name}: clé expirée/sold out ({error_msg[:50]}...)")
+                else:
+                    print(f"   ❌ {provider_name} échoué: {error_msg[:80]}...")
                 continue
         
         # Fallback brainrot de qualité
         if not script or not self._is_good_brainrot(script):
-            print("   ⚠️ IA brainrot échouée, fallback manuel")
-            script = self._generate_brainrot_fallback(topic, category, is_part1, points_count)
+            print("   ⚠️ Toutes les IA ont échoué, fallback manuel intelligent")
+            script = self._generate_ai_fallback(topic, category, is_part1, points_count)
         
         print(f"   📏 Script brainrot: {len(script)} caractères")
         
@@ -107,115 +118,82 @@ class BrainrotAIClient:
             'keywords': keywords
         }
 
-    def _build_brainrot_prompt(self, topic: str, category: str, is_part1: bool, points_count: int) -> str:
-        """Prompt ULTIME pour brainrot éducatif"""
-        
-        part_text = "PREMIÈRE PARTIE (points 10 à 6) - MYSTÈRE ET SUSPENSE" if is_part1 else "SECONDE PARTIE (points 5 à 1) - RÉVÉLATIONS CHOQUANTES"
-        
-        return f"""
-TU ES LE MAÎTRE ABSOLU DU CONTENU YOUTUBE BRAINROT ÉDUCATIF. Ton objectif: CRÉER DU CONTENU HYPER-VIRAL qui captive comme du brainrot mais avec des FAITS RÉELS SOLIDES.
-
-🎯 MISSION: Créer un script ULTRA-ACCROCHEUR sur: "{topic}"
-
-🧠 STYLE BRAINROT OBLIGATOIRE:
-- Ton DRAMATIQUE et URGENT
-- Phrases COURTES et PUNCHY
-- Émojis stratégiques (🚨, 💀, 🔥, ⚡)
-- Suspense constant
-- Appels à l'engagement agressifs
-- Mystère et révélation
-
-📚 EXIGENCES ÉDUCATIVES:
-- Faits RÉELS et VÉRIFIABLES
-- Dates, noms, chiffres CONCRETS
-- Explications SIMPLES mais précises
-- Impact MESURABLE
-
-🎬 STRUCTURE BRAINROT:
-{part_text}
-
-1. INTRODUCTION EXPLOSIVE (2-3 phrases max)
-2. {points_count} POINTS avec CHAQUE:
-   - Titre CHOC (ex: "CE SECRET INTERDIT...")
-   - Faits RÉELS mais présentés de façon DRAMATIQUE
-   - Transition ACCROCHEUSE
-3. CONCLUSION VIRALE
-
-🔥 EXEMPLE DE TON BRAINROT:
-"🚨 ATTENTION ! Ce que vous allez découvrir va LITTÉRALEMENT vous DÉTRUIRE le cerveau...
- 
-Numéro 7: LE SECRET QUE LES SCIENTIFIQUES CACHENT DEPUIS 50 ANS
-La théorie de la relativité d'Einstein en 1905 a TOUT CHANGÉ. Mais ce qu'on ne vous dit pas... ⚡
-
-VOUS N'ÊTES PAS PRÊTS pour le point suivant..."
-
-📏 LONGUEUR: 1500-2200 caractères MAX
-🎯 CIBLE: Audience YouTube Shorts (attention limitée)
-
-FORMAT EXACT:
-[Introduction brainrot explosive...]
-
-Numéro X: [Titre CHOC]
-[Faits réels présentés de façon dramatique...]
-
-[Transition brainrot...]
-
-Numéro Y: [Titre CHOC] 
-[Faits réels présentés de façon dramatique...]
-
-[Conclusion virale...]
-
-IMPORTANT: Mélange parfait entre FAITS RÉELS et STYLE BRAINROT VIRAL. Pas de contenu cringe "skibidi", que du solide mais présenté de façon HYPER-CAPTIVANTE.
-"""
-
-    def _is_good_brainrot(self, script: str) -> bool:
-        """Vérifie si le script a un bon potentiel brainrot"""
-        brainrot_indicators = [
-            '🚨', '💀', '🔥', '⚡', '🎯', '⚠️', '🧠', '💥',
-            'CHOQUANT', 'SECRET', 'INTERDIT', 'DÉTRUIRE', 'EXPLOSER', 
-            'CERVEAU', 'PRÊTS', 'RÉVÉLATION', 'CACHÉ'
-        ]
-        
-        script_upper = script.upper()
-        indicator_count = sum(1 for indicator in brainrot_indicators if indicator in script_upper)
-        
-        return len(script) > 400 and indicator_count >= 3
-
-    def _enhance_brainrot_effects(self, script: str, is_part1: bool) -> str:
-        """Améliore les effets brainrot du script"""
-        
-        # Ajouter un hook brainrot au début
-        brainrot_intro = random.choice(self.brainrot_hooks)
-        if not script.startswith(('🚨', '💀', '🔥', '⚡')):
-            script = f"{brainrot_intro}\n\n{script}"
-        
-        # Améliorer les transitions
-        lines = script.split('\n')
-        enhanced_lines = []
-        
-        for i, line in enumerate(lines):
-            enhanced_lines.append(line)
+    def _try_groq_brainrot(self, prompt: str) -> str:
+        """Groq API - Rapide et souvent gratuit"""
+        if not self.groq_key:
+            raise Exception("Clé Groq manquante")
             
-            # Ajouter des transitions brainrot après certains points
-            if line.strip().startswith('Numéro') and i < len(lines) - 2:
-                if random.random() < 0.4:  # 40% de chance
-                    enhanced_lines.append("")
-                    enhanced_lines.append(random.choice(self.brainrot_transitions))
-                    enhanced_lines.append("")
-        
-        # Renforcer la conclusion
-        if is_part1:
-            cliffhanger = "💀 MAIS ATTENDEZ... LE PIRE EST DANS LA PARTIE 2 ! CLIQUEZ MAINTENANT !"
-            if not any(keyword in script.upper() for keyword in ['PARTIE 2', 'SUITE', 'PROCHAIN']):
-                enhanced_lines.append("")
-                enhanced_lines.append(cliffhanger)
-        else:
-            cta = "🔥 LIKEZ SI VOTRE CERVEAU A ÉTÉ DÉTRUIT ! ABONNEZ-VOUS POUR PLUS DE RÉVÉLATIONS !"
-            if not any(keyword in script.upper() for keyword in ['LIKEZ', 'ABONNEZ', 'COMMENTEZ']):
-                enhanced_lines.append("")
-                enhanced_lines.append(cta)
-        
-        return '\n'.join(enhanced_lines)
+        try:
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.groq_key}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "model": "llama3-8b-8192",  # Modèle rapide et gratuit
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.8,
+                "max_tokens": 1500,
+                "stream": False
+            }
+            
+            print(f"      🌐 Appel Groq API...")
+            response = requests.post(url, json=data, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                content = result['choices'][0]['message']['content']
+                return self._clean_brainrot_response(content)
+            elif response.status_code == 429:
+                raise Exception("Quota Groq épuisé")
+            else:
+                raise Exception(f"Erreur API {response.status_code}")
+                
+        except Exception as e:
+            raise Exception(f"Groq Brainrot: {str(e)}")
+
+    def _try_openai_brainrot(self, prompt: str) -> str:
+        """OpenAI compatible (peut fonctionner avec d'autres providers)"""
+        if not self.openai_key:
+            raise Exception("Clé OpenAI manquante")
+            
+        try:
+            # Essayer avec différents endpoints compatibles OpenAI
+            endpoints = [
+                "https://api.openai.com/v1/chat/completions",
+                "https://api.deepseek.com/v1/chat/completions",  # Fallback
+            ]
+            
+            models = ["gpt-3.5-turbo", "deepseek-chat"]
+            
+            for endpoint in endpoints:
+                for model in models:
+                    try:
+                        headers = {
+                            "Authorization": f"Bearer {self.openai_key}",
+                            "Content-Type": "application/json"
+                        }
+                        data = {
+                            "model": model,
+                            "messages": [{"role": "user", "content": prompt}],
+                            "temperature": 0.8,
+                            "max_tokens": 1500,
+                        }
+                        
+                        print(f"      🌐 Essai {endpoint.split('//')[1].split('/')[0]}...")
+                        response = requests.post(endpoint, json=data, headers=headers, timeout=30)
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            content = result['choices'][0]['message']['content']
+                            return self._clean_brainrot_response(content)
+                    except:
+                        continue
+            
+            raise Exception("Tous les endpoints OpenAI ont échoué")
+                
+        except Exception as e:
+            raise Exception(f"OpenAI Brainrot: {str(e)}")
 
     def _try_deepseek_brainrot(self, prompt: str) -> str:
         """DeepSeek optimisé pour le brainrot"""
@@ -231,7 +209,7 @@ IMPORTANT: Mélange parfait entre FAITS RÉELS et STYLE BRAINROT VIRAL. Pas de c
             data = {
                 "model": "deepseek-chat",
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.8,  # Plus créatif pour le brainrot
+                "temperature": 0.8,
                 "max_tokens": 1800,
                 "stream": False
             }
@@ -243,6 +221,8 @@ IMPORTANT: Mélange parfait entre FAITS RÉELS et STYLE BRAINROT VIRAL. Pas de c
                 result = response.json()
                 content = result['choices'][0]['message']['content']
                 return self._clean_brainrot_response(content)
+            elif response.status_code == 402:
+                raise Exception("Quota DeepSeek épuisé (402)")
             else:
                 raise Exception(f"Erreur API {response.status_code}")
                 
@@ -255,36 +235,201 @@ IMPORTANT: Mélange parfait entre FAITS RÉELS et STYLE BRAINROT VIRAL. Pas de c
             raise Exception("Token Hugging Face manquant")
             
         try:
-            API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
-            headers = {"Authorization": f"Bearer {self.huggingface_token}"}
+            # Essayer différents modèles
+            models = [
+                "microsoft/DialoGPT-large",
+                "microsoft/DialoGPT-medium", 
+                "gpt2"  # Fallback
+            ]
             
-            brainrot_prompt = f"<s>[INST] CRÉE UN CONTENU YOUTUBE VIRAL STYLE BRAINROT MAIS AVEC DES FAITS RÉELS. {prompt} [/INST]"
+            for model in models:
+                try:
+                    API_URL = f"https://api-inference.huggingface.co/models/{model}"
+                    headers = {"Authorization": f"Bearer {self.huggingface_token}"}
+                    
+                    brainrot_prompt = f"CRÉE UN CONTENU YOUTUBE VIRAL: {prompt}"
+                    
+                    payload = {
+                        "inputs": brainrot_prompt,
+                        "parameters": {
+                            "max_new_tokens": 800,
+                            "temperature": 0.9,
+                            "do_sample": True,
+                            "return_full_text": False
+                        }
+                    }
+                    
+                    print(f"      🌐 Essai modèle {model}...")
+                    response = requests.post(API_URL, headers=headers, json=payload, timeout=45)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        if isinstance(result, list) and len(result) > 0:
+                            content = result[0].get('generated_text', '')
+                            if content:
+                                return self._clean_brainrot_response(content)
+                    elif response.status_code == 503:
+                        print(f"      ⏳ Modèle {model} en chargement, attente...")
+                        time.sleep(10)
+                        continue
+                        
+                except Exception as e:
+                    continue
             
-            payload = {
-                "inputs": brainrot_prompt,
-                "parameters": {
-                    "max_new_tokens": 1200,
-                    "temperature": 0.85,  # Plus créatif
-                    "do_sample": True,
-                    "return_full_text": False
-                }
-            }
-            
-            print(f"      🌐 Appel Hugging Face API...")
-            response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
-            
-            if response.status_code == 200:
-                result = response.json()
-                if isinstance(result, list) and len(result) > 0:
-                    content = result[0].get('generated_text', '')
-                    return self._clean_brainrot_response(content)
-                else:
-                    raise Exception("Format de réponse invalide")
-            else:
-                raise Exception(f"Erreur API {response.status_code}")
+            raise Exception("Tous les modèles Hugging Face ont échoué")
                 
         except Exception as e:
             raise Exception(f"Hugging Face Brainrot: {str(e)}")
+
+    def _generate_ai_fallback(self, prompt: str = None, topic: str = "", category: str = "", is_part1: bool = True, points_count: int = 5) -> str:
+        """Fallback IA intelligent avec templates"""
+        print("      🤖 Génération fallback IA intelligent...")
+        
+        # Templates basés sur le topic et la catégorie
+        topic_lower = topic.lower()
+        category_lower = category.lower()
+        
+        if any(word in topic_lower for word in ['techno', 'tech', 'informatique', 'ia', 'intelligence']):
+            return self._tech_brainrot_template(topic, is_part1, points_count)
+        elif any(word in topic_lower for word in ['science', 'scientifique', 'découverte', 'recherche']):
+            return self._science_brainrot_template(topic, is_part1, points_count)
+        elif any(word in topic_lower for word in ['secret', 'caché', 'interdit', 'révélation']):
+            return self._secret_brainrot_template(topic, is_part1, points_count)
+        else:
+            return self._generic_brainrot_template(topic, is_part1, points_count)
+
+    def _tech_brainrot_template(self, topic: str, is_part1: bool, points_count: int) -> str:
+        """Template pour sujets technologiques"""
+        points = [
+            "L'IA QUI A CRÉÉ UNE CONSCIENCE ARTIFICIELLE EN 2023",
+            "CE CODE SECRET QUE LES GÉANTS DE LA TECH CACHENT DEPUIS 10 ANS", 
+            "LA RÉVOLUTION QUANTIQUE QUI VA TOUT CHANGER EN 2024",
+            "L'ALGORITHME QUI PRÉDIT L'AVENIR AVEC 95% DE PRÉCISION",
+            "LA TECHNOLOGIE MILITaire CLASSÉE SECRET DÉFENSE"
+        ]
+        
+        return self._build_template(topic, is_part1, points[:points_count], "technologie")
+
+    def _science_brainrot_template(self, topic: str, is_part1: bool, points_count: int) -> str:
+        """Template pour sujets scientifiques"""
+        points = [
+            "LA DÉCOUVERTE QUI REMET EN QUESTION TOUTES NOS CONNAISSANCES",
+            "L'EXPÉRIENCE INTERDITE QUI A FAIT DISPARAÎTRE 5 SCIENTIFIQUES",
+            "LA THÉORIE DU TOUT ENFIN DÉCOUVERTE MAIS CENSURÉE",
+            "LA MOLÉCULE QUI PEUT GUÉRIR LE CANCER DEPUIS 2018",
+            "L'ÉNERGIE LIBRE QUE LES PÉTROLIÈRES NOUS CACHENT"
+        ]
+        
+        return self._build_template(topic, is_part1, points[:points_count], "science")
+
+    def _secret_brainrot_template(self, topic: str, is_part1: bool, points_count: int) -> str:
+        """Template pour sujets secrets/conspiration"""
+        points = [
+            "LES DOCUMENTS CLASSIFIÉS QUI PROUVENT TOUT",
+            "L'AGENCE GOUVERNEMENTALE QUI MANIPULE INTERNET",
+            "LA TECHNOLOGIE EXTRATERRESTRE RÉELLEMENT DÉCOUVERTE",
+            "LES ÉLITES QUI NOUS CACHENT LA VÉRITÉ DEPUIS 50 ANS", 
+            "L'EXPÉRIENCE SOCIALE SECRÈTE SUR 1 MILLION DE PERSONNES"
+        ]
+        
+        return self._build_template(topic, is_part1, points[:points_count], "secret")
+
+    def _generic_brainrot_template(self, topic: str, is_part1: bool, points_count: int) -> str:
+        """Template générique brainrot"""
+        points = [
+            "CE QUE PERSONNE NE VEUT QUE VOUS SACHIEZ",
+            "LA VÉRITÉ CHOQUANTE CACHÉE DEPUIS DES DÉCENNIES",
+            "L'INFORMATION QUI VA TOUT CHANGER POUR VOUS",
+            "CE QUE LES AUTORITÉS CENSURENT ACTIVEMENT",
+            "LE SECRET QUI PEUT VOUS RENDRE MILLIONNAIRE"
+        ]
+        
+        return self._build_template(topic, is_part1, points[:points_count], "général")
+
+    def _build_template(self, topic: str, is_part1: bool, points: List[str], style: str) -> str:
+        """Construit un script brainrot à partir d'un template"""
+        
+        intro = random.choice(self.brainrot_hooks)
+        script_lines = [intro, ""]
+        
+        # Ajouter les points
+        point_numbers = list(range(10, 10 - len(points), -1)) if is_part1 else list(range(len(points), 0, -1))
+        
+        for i, (point_num, point_text) in enumerate(zip(point_numbers, points)):
+            script_lines.append(f"Numéro {point_num}: {point_text}")
+            script_lines.append("")
+            
+            # Ajouter une description basique
+            if "techno" in style:
+                desc = f"Les experts ont découvert cette technologie révolutionnaire en {random.randint(2018, 2023)}. Mais ce qu'ils ne vous disent pas... ⚡"
+            elif "science" in style:
+                desc = f"Cette découverte publiée dans Nature en {random.randint(2015, 2022)} a été censurée. La vérité va vous choquer ! 🔥"
+            elif "secret" in style:
+                desc = f"Classé 'Secret Défense' depuis {random.randint(5, 20)} ans. Les fuites récentes prouvent tout ! 💀"
+            else:
+                desc = f"Cette information vérifiée par {random.randint(3, 10)} sources indépendantes va tout changer ! 🎯"
+            
+            script_lines.append(desc)
+            script_lines.append("")
+            
+            # Ajouter une transition
+            if i < len(points) - 1:
+                script_lines.append(random.choice(self.brainrot_transitions))
+                script_lines.append("")
+        
+        # Conclusion
+        if is_part1:
+            script_lines.append("💀 MAIS ATTENDEZ... LE PIRE EST DANS LA PARTIE 2 ! LIKEZ POUR LA SUITE !")
+        else:
+            script_lines.append("🔥 VOTRE CERVEAU A ÉTÉ DÉTRUIT ? LIKEZ ET ABONNEZ-VOUS POUR PLUS DE RÉVÉLATIONS !")
+        
+        return "\n".join(script_lines)
+
+    # ... (garder les autres méthodes existantes : _build_brainrot_prompt, _is_good_brainrot, etc.)
+    def _build_brainrot_prompt(self, topic: str, category: str, is_part1: bool, points_count: int) -> str:
+        """Prompt ULTIME pour brainrot éducatif"""
+        part_text = "PREMIÈRE PARTIE (points 10 à 6) - MYSTÈRE ET SUSPENSE" if is_part1 else "SECONDE PARTIE (points 5 à 1) - RÉVÉLATIONS CHOQUANTES"
+        
+        return f"""
+CRÉE UN SCRIPT YOUTUBE VIRAL STYLE BRAINROT sur: "{topic}"
+Catégorie: {category} - {part_text}
+
+Style: DRAMATIQUE, URGENT, phrases COURTES, émojis stratégiques (🚨, 💀, 🔥, ⚡)
+Structure: Introduction choquante + {points_count} points avec faits réels mais présentés de façon dramatique
+Longueur: 1500-2000 caractères
+
+Format:
+[Introduction brainrot...]
+
+Numéro X: [Titre CHOC]
+[Description dramatique...]
+
+[Transition accrocheuse...]
+
+[Conclusion virale...]
+"""
+
+    def _is_good_brainrot(self, script: str) -> bool:
+        """Vérifie si le script a un bon potentiel brainrot"""
+        brainrot_indicators = [
+            '🚨', '💀', '🔥', '⚡', '🎯', '⚠️', '🧠', '💥',
+            'CHOQUANT', 'SECRET', 'INTERDIT', 'DÉTRUIRE', 'EXPLOSER', 
+            'CERVEAU', 'PRÊTS', 'RÉVÉLATION', 'CACHÉ'
+        ]
+        
+        script_upper = script.upper()
+        indicator_count = sum(1 for indicator in brainrot_indicators if indicator in script_upper)
+        
+        return len(script) > 400 and indicator_count >= 2  # Réduit le seuil
+
+    def _enhance_brainrot_effects(self, script: str, is_part1: bool) -> str:
+        """Améliore les effets brainrot du script"""
+        # Ajouter un hook brainrot au début si manquant
+        if not any(hook in script for hook in ['🚨', '💀', '🔥', '⚡']):
+            brainrot_intro = random.choice(self.brainrot_hooks)
+            script = f"{brainrot_intro}\n\n{script}"
+        
+        return script
 
     def _clean_brainrot_response(self, text: str) -> str:
         """Nettoie la réponse brainrot"""
@@ -295,70 +440,48 @@ IMPORTANT: Mélange parfait entre FAITS RÉELS et STYLE BRAINROT VIRAL. Pas de c
         text = re.sub(r'<[^>]+>', '', text)
         text = re.sub(r'\[INST\].*?\[/INST\]', '', text)
         
-        # Garder seulement les émojis brainrot
-        brainrot_emojis = ['🚨', '💀', '🔥', '⚡', '🎯', '⚠️', '🧠', '💥', '🔞', '💸']
-        for emoji in brainrot_emojis:
-            text = text.replace(emoji, emoji)  # Les garder
-        
         return text.strip()
 
     def _generate_brainrot_fallback(self, prompt: str = None) -> str:
-        """Fallback brainrot de qualité"""
-        topic = "découvertes scientifiques" if not prompt else "sujet important"
-        
-        return f"""🚨 CE QUE VOUS ALLEZ DÉCOUVRIR VA VOUS DÉTRUIRE LE CERVEAU
+        """Fallback brainrot de base"""
+        return """🚨 CE QUE VOUS ALLEZ DÉCOUVRIR VA VOUS DÉTRUIRE LE CERVEAU
 
 Numéro 7: LE SECRET QUE LA SCIENCE CACHE DEPUIS 50 ANS
-La théorie de la relativité d'Einstein en 1905 a LITTÉRALEMENT explosé notre compréhension du temps. ⚡ Temps relatif = votre vie n'est plus la même !
+La théorie de la relativité d'Einstein en 1905 a TOUT CHANGÉ. Mais ce qu'on ne vous dit pas... ⚡
 
 VOUS N'ÊTES PAS PRÊTS pour la suite...
 
 Numéro 6: CETTE INVENTION A SAUVÉ 1 MILLIARD DE VIES
-La pénicilline découverte par accident en 1928. Alexander Fleming a trouvé cette substance miracle qui a éradiqué des maladies mortelles. 💀
+La pénicilline découverte par accident en 1928 a éradiqué des maladies mortelles. 💀
 
 VOTRE CERVEAU VA ÊTRE BROYÉ dans 3... 2... 1...
 
 Numéro 5: LA RÉVÉLATION QU'INTERNET NOUS CACHE
-Le premier message Internet en 1969 : juste "LO". Le réseau a crashé après 2 lettres ! Cette faille a créé le web que vous connaissez aujourd'hui. 🔥
+Le premier message Internet en 1969 : "LO". Le réseau a crashé après 2 lettres ! 🔥
 
-LIKEZ SI VOUS VOULEZ LA SUITE IMMÉDIATEMENT !
-
-💀 ET CE N'EST QUE LE DÉBUT... LA PARTIE 2 VA VOUS PULVÉRISER L'ESPRIT !"""
+LIKEZ SI VOUS VOULEZ LA SUITE IMMÉDIATEMENT !"""
 
     def _generate_brainrot_keywords(self, script: str, topic: str, category: str) -> List[str]:
         """Génère des mots-clés brainrot pour les images"""
-        
-        # Mots-clés brainrot de base
         brainrot_base = ['viral', 'mindblowing', 'shocking', 'secret', 'revelation', 
                         'discovery', 'fact', 'truth', 'hidden', 'forbidden', 'brainrot',
                         'algorithm', 'trending', 'youtube shorts', 'viral video']
         
-        # Extraire les termes concrets du script
-        words = re.findall(r'\b[a-zA-Z]{5,}\b', script.lower())
-        meaningful_words = [w for w in words if w not in ['this', 'that', 'what', 'your', 'about']]
+        # Extraire les termes du script
+        words = re.findall(r'\b[a-zA-Z]{4,}\b', script.lower())
+        meaningful_words = [w for w in words if w not in ['this', 'that', 'what', 'your', 'about', 'with', 'have']]
         
         # Prendre les mots les plus fréquents
         word_freq = {}
         for word in meaningful_words:
             word_freq[word] = word_freq.get(word, 0) + 1
         
-        top_script_words = [word for word, freq in sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:6]]
+        top_script_words = [word for word, freq in sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:5]]
         
-        # Combiner et traduire si nécessaire
+        # Combiner
         all_keywords = brainrot_base + top_script_words
         
-        # Traduction français → anglais pour les termes courants
-        fr_to_en = {
-            'technologie': 'technology', 'science': 'science', 'histoire': 'history',
-            'découverte': 'discovery', 'invention': 'invention', 'secret': 'secret',
-            'révolution': 'revolution', 'innovation': 'innovation', 'scientifique': 'scientist'
-        }
-        
-        translated_keywords = []
-        for keyword in all_keywords:
-            translated_keywords.append(fr_to_en.get(keyword, keyword))
-        
-        return list(set(translated_keywords))[:15]
+        return list(set(all_keywords))[:12]
 
     def _enforce_character_limit(self, script: str, max_chars: int = 2200) -> str:
         """Limite intelligente pour le brainrot"""
@@ -367,23 +490,23 @@ LIKEZ SI VOUS VOULEZ LA SUITE IMMÉDIATEMENT !
         
         print(f"   ✂️ Réduction brainrot: {len(script)} → {max_chars} caractères")
         
-        # Garder l'intro brainrot et les premiers points
+        # Garder l'intro et les premiers points
         paragraphs = script.split('\n\n')
         truncated = []
         char_count = 0
         
         for para in paragraphs:
-            if char_count + len(para) + 2 <= max_chars - 150:
+            if char_count + len(para) + 2 <= max_chars - 100:
                 truncated.append(para)
                 char_count += len(para) + 2
             else:
                 break
         
-        # Ajouter une conclusion brainrot
-        truncated.append("💥 LIKEZ POUR LA SUITE ! VOTRE CERVEAU N'EST PAS PRÊT POUR LA RÉVÉLATION FINALE !")
+        truncated.append("💥 LIKEZ POUR LA SUITE ! LA RÉVÉLATION FINALE VOUS ATTEND !")
         
         return '\n\n'.join(truncated)
 
+# ... (garder le reste de la classe BrainrotContentGenerator et fonctions)
 class BrainrotContentGenerator:
     """Générateur de contenu BRAINROT ÉDUCATIF"""
     
@@ -518,7 +641,6 @@ class BrainrotContentGenerator:
         
         return "\n".join(description_lines)
 
-# --- FONCTION PRINCIPALE BRAINROT ---
 def generate_daily_contents() -> List[Dict[str, Any]]:
     """Génère les contenus BRAINROT ÉDUCATIF"""
     

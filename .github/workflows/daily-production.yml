@@ -22,12 +22,31 @@ jobs:
 
     env:
       FORCE_RUN: ${{ fromJSON(github.event.inputs.force_run || 'false') }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      UNSPLASH_API_KEY: ${{ secrets.UNSPLASH_API_KEY }}
+      HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      BACKGROUND_MUSIC_ENABLED: ${{ vars.BACKGROUND_MUSIC_ENABLED || 'false' }}
+      BACKGROUND_MUSIC_VOLUME: ${{ vars.BACKGROUND_MUSIC_VOLUME || '0.25' }}
+      ENABLE_AUTO_UPLOAD: ${{ vars.ENABLE_AUTO_UPLOAD || 'false' }}
 
     steps:
       - name: 📥 Checkout du code
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
+      - name: 🔍 Vérification variables
+        run: |
+          echo "=== VARIABLES ENVIRONNEMENT ==="
+          echo "DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:0:10}..."
+          echo "UNSPLASH_API_KEY: ${UNSPLASH_API_KEY:0:10}..." 
+          echo "HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN:0:10}..."
+          echo "GEMINI_API_KEY: ${GEMINI_API_KEY:0:10}..."
+          echo "GROQ_API_KEY: ${GROQ_API_KEY:0:10}..."
+          echo "OPENAI_API_KEY: ${OPENAI_API_KEY:0:10}..."
 
       - name: 🐍 Configuration Python
         uses: actions/setup-python@v4
@@ -36,27 +55,9 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'requirements.txt'
 
-      - name: 🔍 Diagnostic de l'environnement
-        run: |
-          echo "=== ENVIRONNEMENT ==="
-          echo "Runner: ${{ runner.os }} - ${{ runner.arch }}"
-          echo "Workspace: $GITHUB_WORKSPACE"
-          echo "Force run: $FORCE_RUN"
-          echo ""
-          echo "=== VERSIONS ==="
-          python --version
-          pip --version
-          ffmpeg -version | head -1 || echo "FFmpeg pas encore installé"
-          echo ""
-          echo "=== STRUCTURE ==="
-          find . -name "*.py" | head -10 | sort
-          echo ""
-          echo "=== CACHE INFO ==="
-          python -m pip cache dir
-
       - name: 🛠️ Installation dépendances système
         run: |
-          echo "📦 Installation de FFmpeg..."
+          echo "📦 Installation des dépendances système..."
           sudo apt-get update
           sudo apt-get install -y ffmpeg
           echo "✅ FFmpeg version: $(ffmpeg -version | head -1)"
@@ -69,12 +70,15 @@ jobs:
           echo "📦 Installation des dépendances..."
           pip install -r requirements.txt
           
+          echo "📦 Installation dépendances supplémentaires..."
+          pip install google-generativeai anthropic yt-dlp
+          
           echo "✅ Dépendances installées:"
-          pip list --format=columns | grep -E "(openai|requests|youtube|pytube|moviepy|PIL|numpy)" | head -10
+          pip list --format=columns | grep -E "(google|anthropic|yt-dlp|moviepy|PIL|requests)" | head -10
 
       - name: 🔧 Vérification pré-lancement
         run: |
-          echo "=== VÉRIFICATIONS ==="
+          echo "=== VÉRIFICATIONS PRÉ-LANCEMENT ==="
           
           # Vérification des fichiers critiques
           echo "📁 Fichiers critiques:"
@@ -106,7 +110,7 @@ jobs:
               print('  🔧 Import config_loader...')
               from content_factory.config_loader import ConfigLoader
               config = ConfigLoader().get_config()
-              print('  ✅ Config chargée - Output:', config.get('PATHS', {}).get('OUTPUT_ROOT', 'output'))
+              print('  ✅ Config chargée')
               
               print('  🔧 Import content_generator...')
               from content_factory.content_generator import generate_daily_contents
@@ -138,11 +142,11 @@ jobs:
           
           echo ""
           echo "🎯 Exécution du script principal..."
-          set -x  # Mode debug activé
+          set -x
           
           python content_factory/auto_content_engine.py --force-run "$FORCE_RUN" --debug
           
-          set +x  # Mode debug désactivé
+          set +x
           echo ""
           echo "🕐 Fin: $(date)"
           echo "✅ Execution terminée"
